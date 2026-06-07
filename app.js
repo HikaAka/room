@@ -175,19 +175,45 @@ function lightTimer()
     );
 }
 
+let currentTemp = 26;
+function tempUp()
+{
+    if(currentTemp < 30)
+    {
+        currentTemp++;
+    }
+
+    document.getElementById(
+        "airconTemp"
+    ).innerText =
+        currentTemp;
+}
+
+function tempDown()
+{
+    if(currentTemp > 18)
+    {
+        currentTemp--;
+    }
+
+    document.getElementById(
+        "airconTemp"
+    ).innerText =
+        currentTemp;
+}
+
 function airconCool()
 {
     client.publish(
         "room/aircon/cool",
-        "26"
+        String(currentTemp)
     );
 }
-
 function airconHeat()
 {
     client.publish(
         "room/aircon/heat",
-        "22"
+        String(currentTemp)
     );
 }
 
