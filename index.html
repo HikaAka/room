@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>HIKARU HOME</title>
+
+<link rel="stylesheet"
+      href="style.css">
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="title">
+    HIKARU HOME
+</div>
+
+<!-- MQTT -->
+
+<div class="card">
+
+    MQTT
+
+    <span
+        id="mqttStatus"
+        class="statusOff">
+
+        ● Disconnected
+
+    </span>
+
+</div>
+
+
+<!-- Sensor -->
+
+<div class="card">
+
+    <div class="cardTitle">
+        🌡 Temperature
+    </div>
+
+    <div
+        class="bigValue"
+        id="tempValue">
+
+        --.-
+
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <div class="cardTitle">
+        💧 Humidity
+    </div>
+
+    <div
+        class="bigValue"
+        id="humidityValue">
+
+        ---
+
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <div class="cardTitle">
+        🫁 CO₂
+    </div>
+
+    <div
+        class="bigValue"
+        id="co2Value">
+
+        ---
+
+    </div>
+
+</div>
+
+
+<!-- Aircon -->
+
+<div class="card">
+
+    <div class="cardTitle">
+        ❄️ AIRCON
+    </div>
+
+    <p>
+        Mode :
+        <span id="airconMode">
+            OFF
+        </span>
+    </p>
+
+    <p>
+        Temp :
+        <span id="airconTemp">
+            26
+        </span>℃
+    </p>
+
+    <button
+        class="coolBtn"
+        onclick="airconCool()">
+
+        COOL
+
+    </button>
+
+    <button
+        class="heatBtn"
+        onclick="airconHeat()">
+
+        HEAT
+
+    </button>
+
+    <button
+        class="offBtn"
+        onclick="airconOff()">
+
+        OFF
+
+    </button>
+
+</div>
+
+
+<!-- Light -->
+
+<div class="card">
+
+    <div class="cardTitle">
+        💡 LIGHT
+    </div>
+
+    <p>
+        Power :
+        <span id="lightPower">
+            OFF
+        </span>
+    </p>
+
+    <p>
+        Brightness :
+        <span id="lightBrightness">
+            MAX
+        </span>
+    </p>
+
+    <p>
+        Timer :
+        <span id="lightTimer">
+            OFF
+        </span>
+    </p>
+
+    <button
+        class="lightBtn"
+        onclick="lightAllOn()">
+
+        ON
+
+    </button>
+
+    <button
+        class="offBtn"
+        onclick="lightOff()">
+
+        OFF
+
+    </button>
+
+    <button
+        class="lightBtn"
+        onclick="lightNight()">
+
+        NIGHT
+
+    </button>
+
+    <button
+        class="lightBtn"
+        onclick="lightDim()">
+
+        DIM
+
+    </button>
+
+    <button
+        class="lightBtn"
+        onclick="lightTimer()">
+
+        TIMER
+
+    </button>
+
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
