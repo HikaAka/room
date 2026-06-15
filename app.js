@@ -74,6 +74,13 @@ client.on(
                 )
                 .innerText =
                 data.co2;
+
+            document
+                .getElementById(
+                    "pressureValue"
+                )
+                .innerText =
+                data.pressure;
         }
 
         //----------------------------------
