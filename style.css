@@ -172,9 +172,16 @@ button{
 
     outline:3px solid #22c55e;
 
-    transform:scale(1.05);
-}
+    background:#22c55e !important;
 
+    color:white !important;
+
+    transform:scale(1.05);
+
+    box-shadow:
+        0 0 18px
+        rgba(34,197,94,0.8);
+}
 
 /*==========================
   Hover
