@@ -221,13 +221,11 @@ function updateAirconView()
 function updateSelectedButtons()
 {
     document
-        .querySelectorAll(".optionBtn")
-        .forEach(
-            button =>
-            {
-                button.classList.remove("selected");
-            }
-        );
+        .querySelectorAll(".optionBtn, .modeBtn")
+        .forEach(button => {
+            button.classList.remove("selected");
+        });
+
     setSelected("mode", airconSetting.mode);
     setSelected("fan", airconSetting.fan);
     setSelected("swing_v", airconSetting.swing_v);
