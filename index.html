@@ -139,9 +139,35 @@
 
     <br><br>
 
-    <button class="coolBtn" onclick="setAirconMode('COOL')">COOL</button>
-    <button class="heatBtn" onclick="setAirconMode('HEAT')">HEAT</button>
-    <button class="offBtn" onclick="setAirconMode('OFF')">OFF</button>
+<button
+    class="coolBtn modeBtn"
+    data-group="mode"
+    data-value="COOL"
+    onclick="setAirconMode('COOL')">
+
+    COOL
+
+</button>
+
+<button
+    class="heatBtn modeBtn"
+    data-group="mode"
+    data-value="HEAT"
+    onclick="setAirconMode('HEAT')">
+
+    HEAT
+
+</button>
+
+<button
+    class="offBtn modeBtn"
+    data-group="mode"
+    data-value="OFF"
+    onclick="setAirconMode('OFF')">
+
+    OFF
+
+</button>
 
 <div class="sectionTitle">Fan</div>
 
