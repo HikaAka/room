@@ -42,6 +42,10 @@ client.on(
             msg
         );
 
+        updateMqttLastUpdate(
+            topic
+        );
+
         const data =
             JSON.parse(msg);
 
@@ -205,6 +209,33 @@ let airconSetting =
     warp: "OFF",
     bio: "OFF"
 };
+function updateMqttLastUpdate(topic)
+{
+    const now =
+        new Date();
+
+    const timeText =
+        now.toLocaleString(
+            "ja-JP",
+            {
+                hour12: false
+            }
+        );
+
+    document
+        .getElementById(
+            "mqttLastUpdate"
+        )
+        .innerText =
+        timeText;
+
+    document
+        .getElementById(
+            "mqttLastTopic"
+        )
+        .innerText =
+        topic;
+}
 
 function updateAirconView()
 {
