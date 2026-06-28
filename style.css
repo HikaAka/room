@@ -112,3 +112,98 @@ button{
 
     color:#ef4444;
 }
+/*==========================
+  Apply
+==========================*/
+
+.applyBtn{
+
+    background:#22c55e;
+
+    color:white;
+
+    width:200px;
+
+    height:65px;
+
+    font-size:22px;
+}
+
+
+/*==========================
+  Aircon Option Buttons
+==========================*/
+
+.optionBtn{
+
+    width:90px;
+
+    height:45px;
+
+    font-size:14px;
+
+    margin:4px;
+}
+
+
+/*==========================
+  Section Title
+==========================*/
+
+.sectionTitle{
+
+    margin-top:20px;
+
+    margin-bottom:8px;
+
+    font-size:18px;
+
+    font-weight:bold;
+
+    color:#cbd5e1;
+}
+
+
+/*==========================
+  Selected Button
+==========================*/
+
+.selected{
+
+    outline:3px solid #22c55e;
+
+    transform:scale(1.05);
+}
+
+
+/*==========================
+  Hover
+==========================*/
+
+button:hover{
+
+    transform:translateY(-2px);
+
+    transition:0.15s;
+
+    filter:brightness(1.1);
+}
+
+
+/*==========================
+  Card Animation
+==========================*/
+
+.card{
+
+    transition:0.2s;
+}
+
+.card:hover{
+
+    transform:translateY(-4px);
+
+    box-shadow:
+        0 12px 30px
+        rgba(0,0,0,0.35);
+}
