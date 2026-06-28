@@ -81,6 +81,19 @@ client.on(
                 )
                 .innerText =
                 data.pressure;
+            document
+                .getElementById(
+                    "absoluteHumidityValue"
+                )
+                .innerText =
+                data.absolute_humidity;
+        
+            document
+                .getElementById(
+                    "dewPointValue"
+                )
+                .innerText =
+                data.dew_point;
         }
 
         //----------------------------------
