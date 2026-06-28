@@ -112,6 +112,26 @@ button{
 
     color:#ef4444;
 }
+
+.modeBtn{
+    background:#64748b;
+    color:white;
+}
+
+.dryBtn{
+    background:#0891b2;
+    color:white;
+}
+
+.fanBtn{
+    background:#14b8a6;
+    color:white;
+}
+
+.autoBtn{
+    background:#7c3aed;
+    color:white;
+}
 /*==========================
   Apply
 ==========================*/
