@@ -214,3 +214,34 @@ button:hover{
         0 12px 30px
         rgba(0,0,0,0.35);
 }
+
+
+/*==========================
+  折り畳み
+==========================*/
+details{
+
+    margin-top:20px;
+}
+
+summary{
+
+    cursor:pointer;
+
+    padding:10px;
+
+    border-radius:10px;
+
+    background:#334155;
+
+    font-size:18px;
+
+    font-weight:bold;
+
+    user-select:none;
+}
+
+summary:hover{
+
+    background:#475569;
+}
