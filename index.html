@@ -143,34 +143,33 @@
     <button class="heatBtn" onclick="setAirconMode('HEAT')">HEAT</button>
     <button class="offBtn" onclick="setAirconMode('OFF')">OFF</button>
 
-    <h3>Fan</h3>
+<div class="sectionTitle">Fan</div>
 
-    <button onclick="setAirconFan('AUTO')">AUTO</button>
-    <button onclick="setAirconFan('LOW')">LOW</button>
-    <button onclick="setAirconFan('MED')">MED</button>
-    <button onclick="setAirconFan('HIGH')">HIGH</button>
-    <button onclick="setAirconFan('MAX')">MAX</button>
+<button class="optionBtn" data-group="fan" data-value="AUTO" onclick="setAirconFan('AUTO')">AUTO</button>
+<button class="optionBtn" data-group="fan" data-value="LOW" onclick="setAirconFan('LOW')">LOW</button>
+<button class="optionBtn" data-group="fan" data-value="MED" onclick="setAirconFan('MED')">MED</button>
+<button class="optionBtn" data-group="fan" data-value="HIGH" onclick="setAirconFan('HIGH')">HIGH</button>
+<button class="optionBtn" data-group="fan" data-value="MAX" onclick="setAirconFan('MAX')">MAX</button>
 
-    <h3>Swing V</h3>
+<div class="sectionTitle">Swing V</div>
 
-    <button onclick="setSwingV('AUTO')">AUTO</button>
-    <button onclick="setSwingV('UP')">UP</button>
-    <button onclick="setSwingV('MID')">MID</button>
-    <button onclick="setSwingV('DOWN')">DOWN</button>
-    <button onclick="setSwingV('STOP')">STOP</button>
+<button class="optionBtn" data-group="swing_v" data-value="AUTO" onclick="setSwingV('AUTO')">AUTO</button>
+<button class="optionBtn" data-group="swing_v" data-value="UP" onclick="setSwingV('UP')">UP</button>
+<button class="optionBtn" data-group="swing_v" data-value="MID" onclick="setSwingV('MID')">MID</button>
+<button class="optionBtn" data-group="swing_v" data-value="DOWN" onclick="setSwingV('DOWN')">DOWN</button>
+<button class="optionBtn" data-group="swing_v" data-value="STOP" onclick="setSwingV('STOP')">STOP</button>
 
-    <h3>Swing H</h3>
+<div class="sectionTitle">Swing H</div>
 
-    <button onclick="setSwingH('AUTO')">AUTO</button>
-    <button onclick="setSwingH('LEFT')">LEFT</button>
-    <button onclick="setSwingH('CENTER')">CENTER</button>
-    <button onclick="setSwingH('RIGHT')">RIGHT</button>
-    <button onclick="setSwingH('STOP')">STOP</button>
+<button class="optionBtn" data-group="swing_h" data-value="AUTO" onclick="setSwingH('AUTO')">AUTO</button>
+<button class="optionBtn" data-group="swing_h" data-value="LEFT" onclick="setSwingH('LEFT')">LEFT</button>
+<button class="optionBtn" data-group="swing_h" data-value="CENTER" onclick="setSwingH('CENTER')">CENTER</button>
+<button class="optionBtn" data-group="swing_h" data-value="RIGHT" onclick="setSwingH('RIGHT')">RIGHT</button>
+<button class="optionBtn" data-group="swing_h" data-value="STOP" onclick="setSwingH('STOP')">STOP</button>
+<div class="sectionTitle">Options</div>
 
-    <h3>Options</h3>
-
-    <button onclick="toggleWarp()">WARP</button>
-    <button onclick="toggleBio()">BIO</button>
+<button class="optionBtn" data-group="warp" data-value="ON" onclick="toggleWarp()">WARP</button>
+<button class="optionBtn" data-group="bio" data-value="ON" onclick="toggleBio()">BIO</button>
 
     <br><br>
 
