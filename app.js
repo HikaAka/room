@@ -228,7 +228,7 @@ function updateSelectedButtons()
                 button.classList.remove("selected");
             }
         );
-
+    setSelected("mode", airconSetting.mode);
     setSelected("fan", airconSetting.fan);
     setSelected("swing_v", airconSetting.swing_v);
     setSelected("swing_h", airconSetting.swing_h);
