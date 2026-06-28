@@ -125,19 +125,19 @@ client.on(
             "room/aircon/state"
         )
         {
-            document
-                .getElementById(
-                    "airconMode"
-                )
-                .innerText =
-                data.mode;
-
-            document
-                .getElementById(
-                    "airconTemp"
-                )
-                .innerText =
-                data.temperature;
+            airconSetting =
+            {
+                power: data.power,
+                mode: data.mode,
+                temperature: data.temperature,
+                fan: data.fan,
+                swing_v: data.swing_v,
+                swing_h: data.swing_h,
+                warp: data.warp,
+                bio: data.bio
+            };
+        
+            updateAirconView();
         }
     }
 );
@@ -181,53 +181,97 @@ function lightTimer()
         "1"
     );
 }
+let airconSetting =
+{
+    power: false,
+    mode: "OFF",
+    temperature: 26,
+    fan: "AUTO",
+    swing_v: "AUTO",
+    swing_h: "AUTO",
+    warp: "OFF",
+    bio: "OFF"
+};
 
-let currentTemp = 26;
+function updateAirconView()
+{
+    document.getElementById("airconMode").innerText =
+        airconSetting.mode;
+
+    document.getElementById("airconTemp").innerText =
+        airconSetting.temperature;
+}
+
 function tempUp()
 {
-    if(currentTemp < 30)
+    if(airconSetting.temperature < 30)
     {
-        currentTemp++;
+        airconSetting.temperature++;
     }
 
-    document.getElementById(
-        "airconTemp"
-    ).innerText =
-        currentTemp;
+    updateAirconView();
 }
 
 function tempDown()
 {
-    if(currentTemp > 18)
+    if(airconSetting.temperature > 18)
     {
-        currentTemp--;
+        airconSetting.temperature--;
     }
 
-    document.getElementById(
-        "airconTemp"
-    ).innerText =
-        currentTemp;
+    updateAirconView();
 }
 
-function airconCool()
+function setAirconMode(mode)
 {
-    client.publish(
-        "room/aircon/cool",
-        String(currentTemp)
-    );
-}
-function airconHeat()
-{
-    client.publish(
-        "room/aircon/heat",
-        String(currentTemp)
-    );
+    airconSetting.mode = mode;
+
+    airconSetting.power =
+        mode !== "OFF";
+
+    updateAirconView();
 }
 
-function airconOff()
+function setAirconFan(fan)
+{
+    airconSetting.fan = fan;
+}
+
+function setSwingV(swing)
+{
+    airconSetting.swing_v = swing;
+}
+
+function setSwingH(swing)
+{
+    airconSetting.swing_h = swing;
+}
+
+function toggleWarp()
+{
+    airconSetting.warp =
+        airconSetting.warp === "ON" ?
+        "OFF" :
+        "ON";
+}
+
+function toggleBio()
+{
+    airconSetting.bio =
+        airconSetting.bio === "ON" ?
+        "OFF" :
+        "ON";
+}
+
+function applyAircon()
 {
     client.publish(
-        "room/aircon/off",
-        "1"
+        "room/aircon/set",
+        JSON.stringify(airconSetting)
+    );
+
+    console.log(
+        "AIRCON APPLY",
+        airconSetting
     );
 }
