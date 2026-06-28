@@ -215,6 +215,47 @@ function updateAirconView()
 
     document.getElementById("airconBio").innerText =
         airconSetting.bio;
+
+    updateSelectedButtons();
+}
+function updateSelectedButtons()
+{
+    document
+        .querySelectorAll(".optionBtn")
+        .forEach(
+            button =>
+            {
+                button.classList.remove("selected");
+            }
+        );
+
+    setSelected("fan", airconSetting.fan);
+    setSelected("swing_v", airconSetting.swing_v);
+    setSelected("swing_h", airconSetting.swing_h);
+
+    if(airconSetting.warp === "ON")
+    {
+        setSelected("warp", "ON");
+    }
+
+    if(airconSetting.bio === "ON")
+    {
+        setSelected("bio", "ON");
+    }
+}
+
+function setSelected(group, value)
+{
+    const selector =
+        `.optionBtn[data-group="${group}"][data-value="${value}"]`;
+
+    const button =
+        document.querySelector(selector);
+
+    if(button)
+    {
+        button.classList.add("selected");
+    }
 }
 
 function tempUp()
