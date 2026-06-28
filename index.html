@@ -122,58 +122,59 @@
 
     <p>
         Mode :
-        <span id="airconMode">
-            OFF
-        </span>
+        <span id="airconMode">OFF</span>
     </p>
 
     <p>
         Temp :
-        <span id="airconTemp">
-            26
-        </span>℃
+        <span id="airconTemp">26</span>℃
     </p>
 
-      
-      <button onclick="tempDown()">
-      
-      -
-      
-      </button>
-      
-      <button onclick="tempUp()">
-      
-      +
-      
-      </button>
-      
-      <br><br>
-      
-      <button
-          class="coolBtn"
-          onclick="airconCool()">
-      
-          COOL
-      
-      </button>
-      
-      <button
-          class="heatBtn"
-          onclick="airconHeat()">
-      
-          HEAT
-      
-      </button>
-      
-      <button
-          class="offBtn"
-          onclick="airconOff()">
-      
-          OFF
-      
-      </button>
-</div>
+    <button onclick="tempDown()">-</button>
+    <button onclick="tempUp()">+</button>
 
+    <br><br>
+
+    <button class="coolBtn" onclick="setAirconMode('COOL')">COOL</button>
+    <button class="heatBtn" onclick="setAirconMode('HEAT')">HEAT</button>
+    <button class="offBtn" onclick="setAirconMode('OFF')">OFF</button>
+
+    <h3>Fan</h3>
+
+    <button onclick="setAirconFan('AUTO')">AUTO</button>
+    <button onclick="setAirconFan('LOW')">LOW</button>
+    <button onclick="setAirconFan('MED')">MED</button>
+    <button onclick="setAirconFan('HIGH')">HIGH</button>
+    <button onclick="setAirconFan('MAX')">MAX</button>
+
+    <h3>Swing V</h3>
+
+    <button onclick="setSwingV('AUTO')">AUTO</button>
+    <button onclick="setSwingV('UP')">UP</button>
+    <button onclick="setSwingV('MID')">MID</button>
+    <button onclick="setSwingV('DOWN')">DOWN</button>
+    <button onclick="setSwingV('STOP')">STOP</button>
+
+    <h3>Swing H</h3>
+
+    <button onclick="setSwingH('AUTO')">AUTO</button>
+    <button onclick="setSwingH('LEFT')">LEFT</button>
+    <button onclick="setSwingH('CENTER')">CENTER</button>
+    <button onclick="setSwingH('RIGHT')">RIGHT</button>
+    <button onclick="setSwingH('STOP')">STOP</button>
+
+    <h3>Options</h3>
+
+    <button onclick="toggleWarp()">WARP</button>
+    <button onclick="toggleBio()">BIO</button>
+
+    <br><br>
+
+    <button class="applyBtn" onclick="applyAircon()">
+        APPLY
+    </button>
+
+</div>
 
 <!-- Light -->
 
