@@ -225,7 +225,9 @@ function updateSelectedButtons()
         .forEach(button => {
             button.classList.remove("selected");
         });
-
+    
+    console.log(airconSetting.mode);
+    
     setSelected("mode", airconSetting.mode);
     setSelected("fan", airconSetting.fan);
     setSelected("swing_v", airconSetting.swing_v);
