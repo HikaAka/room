@@ -200,6 +200,21 @@ function updateAirconView()
 
     document.getElementById("airconTemp").innerText =
         airconSetting.temperature;
+
+    document.getElementById("airconFan").innerText =
+        airconSetting.fan;
+
+    document.getElementById("airconSwingV").innerText =
+        airconSetting.swing_v;
+
+    document.getElementById("airconSwingH").innerText =
+        airconSetting.swing_h;
+
+    document.getElementById("airconWarp").innerText =
+        airconSetting.warp;
+
+    document.getElementById("airconBio").innerText =
+        airconSetting.bio;
 }
 
 function tempUp()
@@ -235,34 +250,36 @@ function setAirconMode(mode)
 function setAirconFan(fan)
 {
     airconSetting.fan = fan;
+    updateAirconView();
 }
 
 function setSwingV(swing)
 {
     airconSetting.swing_v = swing;
+    updateAirconView();
 }
 
 function setSwingH(swing)
 {
     airconSetting.swing_h = swing;
+    updateAirconView();
 }
 
 function toggleWarp()
 {
     airconSetting.warp =
-        airconSetting.warp === "ON" ?
-        "OFF" :
-        "ON";
+        airconSetting.warp === "ON" ? "OFF" : "ON";
+
+    updateAirconView();
 }
 
 function toggleBio()
 {
     airconSetting.bio =
-        airconSetting.bio === "ON" ?
-        "OFF" :
-        "ON";
-}
+        airconSetting.bio === "ON" ? "OFF" : "ON";
 
+    updateAirconView();
+}
 function applyAircon()
 {
     client.publish(
