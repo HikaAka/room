@@ -244,18 +244,16 @@ function updateSelectedButtons()
 
 function setSelected(group, value)
 {
-    const selector =
-        `.optionBtn[data-group="${group}"][data-value="${value}"]`;
-
     const button =
-        document.querySelector(selector);
+        document.querySelector(
+            `[data-group="${group}"][data-value="${value}"]`
+        );
 
     if(button)
     {
         button.classList.add("selected");
     }
 }
-
 function tempUp()
 {
     if(airconSetting.temperature < 30)
