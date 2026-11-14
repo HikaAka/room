@@ -1,10 +1,38 @@
-const client = mqtt.connect(
-    "wss://c33aa709ad5b447381d7574b4db4b5f5.s1.eu.hivemq.cloud:8884/mqtt",
-    {
-        username: "hikaru",
-        password: "HiveMQ1234HiveMQ"
+// EMQX Cloud: ブラウザに認証情報をハードコードしない
+const EMQX_WSS_URL = "wss://i13aaaec.ala.asia-southeast1.emqxsl.com:8084/mqtt";
+let client = null;
+
+function setMqttStatus(message, connected = false) {
+    const el = document.getElementById("mqttStatus");
+    el.textContent = message;
+    el.className = connected ? "statusOn" : "statusOff";
+}
+
+function connectToEmqx() {
+    const username = document.getElementById("mqttUsername").value.trim();
+    const passwordField = document.getElementById("mqttPassword");
+    const password = passwordField.value;
+    if (!username || !password) {
+        setMqttStatus("● ユーザー名とパスワードが必要です");
+        return;
     }
-);
+    if (client) client.end(true);
+    setMqttStatus("● Connecting...");
+    client = mqtt.connect(EMQX_WSS_URL, {
+        clientId: "room-web-" + crypto.randomUUID(),
+        username,
+        password,
+        connectTimeout: 10000,
+        reconnectPeriod: 3000,
+        clean: true
+    });
+    // 画面にパスワードを残さない（接続中はMQTTクライアントのメモリに保持）
+    passwordField.value = "";
+    client.on("error", err => {
+        console.error("MQTT connection error", err.message);
+        setMqttStatus("● MQTT Error: " + err.message);
+    });
+    client.on("close", () => setMqttStatus("● Disconnected"));
 
 client.on(
     "connect",
@@ -46,8 +74,13 @@ client.on(
             topic
         );
 
-        const data =
-            JSON.parse(msg);
+        let data;
+        try {
+            data = JSON.parse(msg);
+        } catch (e) {
+            console.warn("Non-JSON MQTT message", topic);
+            return;
+        }
 
         //----------------------------------
         // Sensor
@@ -159,9 +192,19 @@ client.on(
     }
 );
 
+}
+
+function publishMqtt(topic, value) {
+    if (!client || !client.connected) {
+        alert("先にEMQXへ接続してください");
+        return;
+    }
+    client.publish(topic, value);
+}
+
 function lightAllOn()
 {
-    client.publish(
+    publishMqtt(
         "room/light/all_on",
         "1"
     );
@@ -169,7 +212,7 @@ function lightAllOn()
 
 function lightOff()
 {
-    client.publish(
+    publishMqtt(
         "room/light/all_off",
         "1"
     );
@@ -177,7 +220,7 @@ function lightOff()
 
 function lightNight()
 {
-    client.publish(
+    publishMqtt(
         "room/light/night",
         "1"
     );
@@ -185,7 +228,7 @@ function lightNight()
 
 function lightDim()
 {
-    client.publish(
+    publishMqtt(
         "room/light/dim",
         "1"
     );
@@ -193,7 +236,7 @@ function lightDim()
 
 function lightTimer()
 {
-    client.publish(
+    publishMqtt(
         "room/light/timer",
         "1"
     );
@@ -365,7 +408,7 @@ function toggleBio()
 }
 function applyAircon()
 {
-    client.publish(
+    publishMqtt(
         "room/aircon/set",
         JSON.stringify(airconSetting)
     );

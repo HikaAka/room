@@ -22,6 +22,17 @@
     HIKARU HOME
 </div>
 
+<!-- EMQX Connection: 認証情報をソースに書かない -->
+<div class="card">
+    <div class="cardTitle">🔐 EMQX Connection</div>
+    <label for="mqttUsername">MQTT Username</label>
+    <input id="mqttUsername" type="text" value="web_viewer" autocomplete="username">
+    <label for="mqttPassword">MQTT Password</label>
+    <input id="mqttPassword" type="password" placeholder="EMQXパスワード" autocomplete="off">
+    <button class="connectBtn" onclick="connectToEmqx()">CONNECT</button>
+    <div class="subValue">パスワードはGitHub Pagesに保存しません。ページ再読み込み時には再入力してください。</div>
+</div>
+
 <!-- MQTT -->
 <div class="card">
 

@@ -275,3 +275,19 @@ summary:hover{
 
     background:#475569;
 }
+
+/* EMQX connection form */
+input#mqttUsername, input#mqttPassword {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 420px;
+    padding: 12px;
+    margin: 8px 0 16px;
+    border-radius: 10px;
+    border: 1px solid #64748b;
+    background: #0f172a;
+    color: white;
+    font-size: 16px;
+}
+.connectBtn { background: #2563eb; color: white; }
