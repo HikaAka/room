@@ -8,10 +8,18 @@ function setMqttStatus(message, connected = false) {
     el.className = connected ? "statusOn" : "statusOff";
 }
 
+// 標準のフォーム送信で、ブラウザのパスワード保存・自動入力を認識しやすくする。
+// HTMLに認証情報を埋め込んだり、localStorageへ保存したりはしない。
+const mqttLoginForm = document.getElementById("mqttLoginForm");
+mqttLoginForm.addEventListener("submit", event => {
+    event.preventDefault();  // GitHub Pagesに認証情報を送信しない
+    connectToEmqx();
+});
+document.getElementById("mqttConnectBtn").disabled = false;
+
 function connectToEmqx() {
     const username = document.getElementById("mqttUsername").value.trim();
-    const passwordField = document.getElementById("mqttPassword");
-    const password = passwordField.value;
+    const password = document.getElementById("mqttPassword").value;
     if (!username || !password) {
         setMqttStatus("● ユーザー名とパスワードが必要です");
         return;
@@ -26,8 +34,8 @@ function connectToEmqx() {
         reconnectPeriod: 3000,
         clean: true
     });
-    // 画面にパスワードを残さない（接続中はMQTTクライアントのメモリに保持）
-    passwordField.value = "";
+    // 接続成功まではフォームを維持する。直ちにパスワード欄を消すと
+    // ブラウザによってはパスワード保存を認識できないことがある。
     client.on("error", err => {
         console.error("MQTT connection error", err.message);
         setMqttStatus("● MQTT Error: " + err.message);
@@ -38,19 +46,11 @@ client.on(
     "connect",
     () =>
     {
-        document
-            .getElementById(
-                "mqttStatus"
-            )
-            .innerHTML =
-            "● Connected";
-
-        document
-            .getElementById(
-                "mqttStatus"
-            )
-            .className =
-            "statusOn";
+        setMqttStatus("● Connected", true);
+        // ログインが成功したらフォームを隠すことで、
+        // 非同期ログインの成功をパスワードマネージャーが検出しやすくする。
+        // 保存確認の表示はブラウザに依存する。
+        document.getElementById("mqttLoginCard").hidden = true;
 
         client.subscribe(
             "room/#"
