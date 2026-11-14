@@ -1,6 +1,16 @@
 // EMQX Cloud: ブラウザに認証情報をハードコードしない
 const EMQX_WSS_URL = "wss://i13aaaec.ala.asia-southeast1.emqxsl.com:8084/mqtt";
 let client = null;
+// A unique response topic for this browser tab (no credentials in the URL).
+const HISTORY_CLIENT_ID = "web" + crypto.randomUUID().replace(/-/g, "").slice(0, 18);
+const HISTORY_RESPONSE_TOPIC = "room/history/response/" + HISTORY_CLIENT_ID;
+let historyRequestId = null;
+let historyExpectedSeq = 0;
+let historyHadGap = false;
+let historyRows = [];
+let historyChart = null;
+let historyTimer = null;
+
 
 function setMqttStatus(message, connected = false) {
     const el = document.getElementById("mqttStatus");
@@ -52,9 +62,15 @@ client.on(
         // 保存確認の表示はブラウザに依存する。
         document.getElementById("mqttLoginCard").hidden = true;
 
-        client.subscribe(
-            "room/#"
-        );
+        // Subscribe to the reply BEFORE requesting data.
+        client.subscribe([
+            "room/sensor/state", "room/light/state", "room/aircon/state",
+            HISTORY_RESPONSE_TOPIC
+        ], err => {
+            if (err) {
+                setHistoryStatus("履歴の購読に失敗しました：権限を確認してください");
+            }
+        });
     }
 );
 
@@ -69,6 +85,11 @@ client.on(
             topic,
             msg
         );
+
+        if (topic === HISTORY_RESPONSE_TOPIC) {
+            handleHistoryMessage(msg);
+            return;
+        }
 
         updateMqttLastUpdate(
             topic
@@ -417,4 +438,132 @@ function applyAircon()
         "AIRCON APPLY",
         airconSetting
     );
+}
+
+
+// ============================================================
+// History: response format is { id, seq, rows:[[epoch,t10,h10,co2,p10,ah10,dew10],...] }
+// End: { id, seq, done:true, total:N }
+// ============================================================
+function setHistoryStatus(text) {
+    const el = document.getElementById("historyStatus");
+    if (el) el.textContent = text;
+}
+
+function requestHistory() {
+    if (!client || !client.connected) {
+        setHistoryStatus("先にEMQXへ接続してください。");
+        return;
+    }
+    const hours = Number(document.getElementById("historyRange").value);
+    if (![24, 168, 720].includes(hours)) return;
+    historyRequestId = "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    historyExpectedSeq = 0;
+    historyHadGap = false;
+    historyRows = [];
+    document.getElementById("loadHistoryBtn").disabled = true;
+    setHistoryStatus("ESP32に履歴を要求中…");
+    if (historyTimer) clearTimeout(historyTimer);
+    historyTimer = setTimeout(() => {
+        setHistoryStatus("タイムアウト：ESP32の接続・履歴購読権限を確認して再試行してください。");
+        document.getElementById("loadHistoryBtn").disabled = false;
+        historyRequestId = null;
+    }, 90000);
+
+    client.publish("room/history/request", JSON.stringify({
+        id: historyRequestId,
+        client: HISTORY_CLIENT_ID,
+        hours
+    }), { qos: 0, retain: false }, err => {
+        if (err) {
+            setHistoryStatus("履歴要求を送信できませんでした。");
+            document.getElementById("loadHistoryBtn").disabled = false;
+            clearTimeout(historyTimer);
+            historyRequestId = null;
+        }
+    });
+}
+
+function handleHistoryMessage(raw) {
+    let msg;
+    try { msg = JSON.parse(raw); }
+    catch (e) { return; }
+    if (!msg || msg.id !== historyRequestId) return;
+    if (!Number.isInteger(msg.seq) || msg.seq !== historyExpectedSeq) {
+        historyHadGap = true;
+        // Keep displaying received records, but show a warning at completion.
+        if (Number.isInteger(msg.seq)) historyExpectedSeq = msg.seq;
+    }
+    if (Array.isArray(msg.rows)) {
+        for (const row of msg.rows) {
+            if (!Array.isArray(row) || row.length !== 7) continue;
+            historyRows.push({
+                time: Number(row[0]) * 1000,
+                temperature: Number(row[1]) / 10,
+                humidity: Number(row[2]) / 10,
+                co2: Number(row[3]),
+                pressure: Number(row[4]) / 10,
+                absolute_humidity: Number(row[5]) / 10,
+                dew_point: Number(row[6]) / 10
+            });
+        }
+        historyExpectedSeq++;
+        setHistoryStatus(`受信中… ${historyRows.length} 件`);
+    }
+    if (msg.done === true) {
+        if (historyTimer) clearTimeout(historyTimer);
+        document.getElementById("loadHistoryBtn").disabled = false;
+        historyRequestId = null;
+        historyRows.sort((a, b) => a.time - b.time);
+        const incomplete = historyHadGap || Number(msg.total) !== historyRows.length;
+        setHistoryStatus(incomplete
+            ? `${historyRows.length} 件受信（欠落の可能性があります。再取得してください）`
+            : `${historyRows.length} 件取得しました。${historyRows.length ? "項目を切り替えて表示できます。" : "保存データはまだありません。"}`);
+        renderHistoryChart();
+    }
+}
+
+function renderHistoryChart() {
+    if (typeof Chart === "undefined") {
+        setHistoryStatus("Chart.jsの読み込みに失敗しました。ネットワークを確認してください。");
+        return;
+    }
+    const metric = document.getElementById("historyMetric").value;
+    const titles = {
+        temperature: ["温度", "℃"], humidity: ["湿度", "%"],
+        co2: ["CO₂", "ppm"], pressure: ["気圧", "hPa"],
+        absolute_humidity: ["絶対湿度", "g/m³"], dew_point: ["露点", "℃"]
+    };
+    const title = titles[metric];
+    if (!title) return;
+    const labels = historyRows.map(row => new Date(row.time).toLocaleString("ja-JP", {
+        month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
+    }));
+    const values = historyRows.map(row => row[metric]);
+    if (historyChart) historyChart.destroy();
+    historyChart = new Chart(document.getElementById("historyChart"), {
+        type: "line",
+        data: {
+            labels,
+            datasets: [{
+                label: `${title[0]} (${title[1]})`, data: values,
+                borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,.15)",
+                pointRadius: 0, pointHitRadius: 8, borderWidth: 2,
+                tension: .12, fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+                x: { ticks: { color: "#cbd5e1", maxTicksLimit: 6, maxRotation: 0 }, grid: { color: "#334155" } },
+                y: { ticks: { color: "#cbd5e1" }, grid: { color: "#334155" } }
+            },
+            plugins: {
+                legend: { labels: { color: "#e2e8f0" } },
+                decimation: { enabled: true, algorithm: "min-max" }
+            }
+        }
+    });
 }

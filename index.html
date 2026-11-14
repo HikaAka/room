@@ -13,6 +13,7 @@
       href="style.css">
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 
 </head>
 
@@ -174,6 +175,33 @@
 
 </div>
 
+
+
+<!-- History (stored on ESP32, fetched via EMQX when requested) -->
+<div class="card" id="historyCard">
+    <div class="cardTitle">📈 センサ履歴</div>
+    <p class="subValue">保存先：ESP32 / 10分ごとの記録</p>
+    <div class="historyControls">
+        <label for="historyRange">期間</label>
+        <select id="historyRange">
+            <option value="24">24時間</option>
+            <option value="168">7日間</option>
+            <option value="720">30日間</option>
+        </select>
+        <label for="historyMetric">項目</label>
+        <select id="historyMetric" onchange="renderHistoryChart()">
+            <option value="temperature">温度 (℃)</option>
+            <option value="humidity">湿度 (%)</option>
+            <option value="co2">CO₂ (ppm)</option>
+            <option value="pressure">気圧 (hPa)</option>
+            <option value="absolute_humidity">絶対湿度 (g/m³)</option>
+            <option value="dew_point">露点 (℃)</option>
+        </select>
+        <button id="loadHistoryBtn" class="applyBtn" type="button" onclick="requestHistory()">履歴を取得</button>
+    </div>
+    <p class="subValue" id="historyStatus">接続後に「履歴を取得」を押してください。</p>
+    <div class="chartWrap"><canvas id="historyChart"></canvas></div>
+</div>
 
 <!-- Aircon -->
 

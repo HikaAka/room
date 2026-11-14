@@ -276,18 +276,10 @@ summary:hover{
     background:#475569;
 }
 
-/* EMQX connection form */
-input#mqttUsername, input#mqttPassword {
-    display: block;
-    box-sizing: border-box;
-    width: 100%;
-    max-width: 420px;
-    padding: 12px;
-    margin: 8px 0 16px;
-    border-radius: 10px;
-    border: 1px solid #64748b;
-    background: #0f172a;
-    color: white;
-    font-size: 16px;
-}
-.connectBtn { background: #2563eb; color: white; }
+/* HISTORY */
+.historyControls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.historyControls select { background:#334155; color:white; border:1px solid #64748b;
+    border-radius:8px; padding:10px; font-size:15px; }
+.historyControls .applyBtn { width:auto; height:44px; font-size:16px; padding:0 18px; }
+.historyControls button:disabled { cursor:not-allowed; opacity:.55; }
+.chartWrap { position:relative; height:300px; width:100%; margin-top:14px; }
