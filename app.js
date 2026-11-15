@@ -8,8 +8,12 @@ let historyRequestId = null;
 let historyExpectedSeq = 0;
 let historyHadGap = false;
 let historyRows = [];
-let historyChart = null;
+const historyCharts = {};
 let historyTimer = null;
+// CSV output is enabled only after a complete MQTT history transfer.
+let historyRequestedHours = null;
+let historyLoadedHours = null;
+let historyReadyForCsv = false;
 
 
 function setMqttStatus(message, connected = false) {
@@ -461,6 +465,11 @@ function requestHistory() {
     historyExpectedSeq = 0;
     historyHadGap = false;
     historyRows = [];
+    historyRequestedHours = hours;
+    historyLoadedHours = null;
+    historyReadyForCsv = false;
+    document.getElementById("downloadHistoryCsvBtn").disabled = true;
+    document.getElementById("historyCsvStatus").textContent = "";
     document.getElementById("loadHistoryBtn").disabled = true;
     setHistoryStatus("ESP32に履歴を要求中…");
     if (historyTimer) clearTimeout(historyTimer);
@@ -468,6 +477,7 @@ function requestHistory() {
         setHistoryStatus("タイムアウト：ESP32の接続・履歴購読権限を確認して再試行してください。");
         document.getElementById("loadHistoryBtn").disabled = false;
         historyRequestId = null;
+        historyRequestedHours = null;
     }, 90000);
 
     client.publish("room/history/request", JSON.stringify({
@@ -480,6 +490,7 @@ function requestHistory() {
             document.getElementById("loadHistoryBtn").disabled = false;
             clearTimeout(historyTimer);
             historyRequestId = null;
+            historyRequestedHours = null;
         }
     });
 }
@@ -516,54 +527,160 @@ function handleHistoryMessage(raw) {
         historyRequestId = null;
         historyRows.sort((a, b) => a.time - b.time);
         const incomplete = historyHadGap || Number(msg.total) !== historyRows.length;
+        historyLoadedHours = historyRequestedHours;
+        historyRequestedHours = null;
+        historyReadyForCsv = !incomplete && historyRows.length > 0;
+        document.getElementById("downloadHistoryCsvBtn").disabled = !historyReadyForCsv;
         setHistoryStatus(incomplete
             ? `${historyRows.length} 件受信（欠落の可能性があります。再取得してください）`
             : `${historyRows.length} 件取得しました。${historyRows.length ? "項目を切り替えて表示できます。" : "保存データはまだありません。"}`);
-        renderHistoryChart();
+        renderHistoryCharts();
     }
 }
 
-function renderHistoryChart() {
+// All graphs share the same MQTT download; no additional requests per chart.
+// Chart.js uses category indices so no date-adapter or extra CDN is required.
+function renderHistoryCharts() {
     if (typeof Chart === "undefined") {
         setHistoryStatus("Chart.jsの読み込みに失敗しました。ネットワークを確認してください。");
         return;
     }
-    const metric = document.getElementById("historyMetric").value;
-    const titles = {
-        temperature: ["温度", "℃"], humidity: ["湿度", "%"],
-        co2: ["CO₂", "ppm"], pressure: ["気圧", "hPa"],
-        absolute_humidity: ["絶対湿度", "g/m³"], dew_point: ["露点", "℃"]
-    };
-    const title = titles[metric];
-    if (!title) return;
+
     const labels = historyRows.map(row => new Date(row.time).toLocaleString("ja-JP", {
         month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
     }));
-    const values = historyRows.map(row => row[metric]);
-    if (historyChart) historyChart.destroy();
-    historyChart = new Chart(document.getElementById("historyChart"), {
-        type: "line",
-        data: {
-            labels,
-            datasets: [{
-                label: `${title[0]} (${title[1]})`, data: values,
-                borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,.15)",
-                pointRadius: 0, pointHitRadius: 8, borderWidth: 2,
-                tension: .12, fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false,
-            scales: {
-                x: { ticks: { color: "#cbd5e1", maxTicksLimit: 6, maxRotation: 0 }, grid: { color: "#334155" } },
-                y: { ticks: { color: "#cbd5e1" }, grid: { color: "#334155" } }
-            },
-            plugins: {
-                legend: { labels: { color: "#e2e8f0" } },
-                decimation: { enabled: true, algorithm: "min-max" }
-            }
-        }
+    const data = key => historyRows.map(row => Number.isFinite(row[key]) ? row[key] : null);
+    const series = (key, label, color, axis = "y") => ({
+        label, data: data(key), yAxisID: axis,
+        borderColor: color, backgroundColor: color,
+        pointRadius: historyRows.length <= 36 ? 3 : 0,
+        pointHoverRadius: 5, pointHitRadius: 12,
+        borderWidth: 2, tension: .12, spanGaps: false
     });
+    const ticks = { color: "#cbd5e1" };
+    const grid = { color: "rgba(148,163,184,.18)" };
+    const axis = (unit, position = "left", showGrid = true) => ({
+        type: "linear", position,
+        title: { display: true, text: unit, color: "#cbd5e1" },
+        ticks, grid: showGrid ? grid : { drawOnChartArea: false },
+    });
+    const build = (id, datasets, yAxes) => {
+        if (historyCharts[id]) historyCharts[id].destroy();
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        historyCharts[id] = new Chart(canvas, {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                interaction: { mode: "index", intersect: false },
+                // Built-in legend click toggles each series separately.
+                plugins: {
+                    legend: { position: "bottom", labels: { color: "#e2e8f0", usePointStyle: true, boxWidth: 9 } },
+                    tooltip: {
+                        mode: "index", intersect: false,
+                        callbacks: {
+                            title: items => items.length ? labels[items[0].dataIndex] : "",
+                            label: item => `${item.dataset.label}: ${item.parsed.y ?? "-"}`
+                        }
+                    },
+                    decimation: { enabled: true, algorithm: "min-max" }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "#cbd5e1", autoSkip: true, maxTicksLimit: 5,
+                            maxRotation: 0, minRotation: 0,
+                            callback: function(index) {
+                                return labels[index] || "";
+                            }
+                        },
+                        grid
+                    },
+                    ...yAxes
+                }
+            }
+        });
+    };
+
+    build("historyCo2Chart", [
+        series("co2", "CO₂ (ppm)", "#4ade80")
+    ], { y: axis("ppm") });
+
+    build("historyTemperatureChart", [
+        series("temperature", "室温 (℃)", "#fb923c"),
+        series("dew_point", "露点温度 (℃)", "#60a5fa")
+    ], { y: axis("℃") });
+
+    build("historyHumidityChart", [
+        series("humidity", "相対湿度 (%)", "#22d3ee", "y"),
+        series("absolute_humidity", "絶対湿度 (g/m³)", "#c084fc", "y1")
+    ], { y: axis("%"), y1: axis("g/m³", "right", false) });
+
+    build("historyPressureChart", [
+        series("pressure", "気圧 (hPa)", "#facc15")
+    ], { y: axis("hPa") });
+}
+
+
+// ============================================================
+// CSV export of the *received* history (no extra MQTT requests).
+// Dates are always Asia/Tokyo, regardless of browser time zone.
+// UTF-8 BOM + CRLF support Japanese column names in Excel.
+// ============================================================
+function downloadHistoryCsv() {
+    if (!historyReadyForCsv || !historyLoadedHours || historyRequestId || !historyRows.length) {
+        document.getElementById("historyCsvStatus").textContent =
+            "先に履歴の取得を完了してください。";
+        return;
+    }
+
+    const formatter = new Intl.DateTimeFormat("ja-JP", {
+        timeZone: "Asia/Tokyo", hourCycle: "h23",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+    });
+    const formatJst = ms => {
+        const parts = Object.fromEntries(formatter.formatToParts(new Date(ms))
+            .filter(part => part.type !== "literal")
+            .map(part => [part.type, part.value]));
+        return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+    };
+    const numeric = value => Number.isFinite(value) ? String(value) : "";
+    const lines = [
+        "日時(JST),UNIX時刻,温度(℃),相対湿度(%),絶対湿度(g/m³),露点(℃),CO2(ppm),気圧(hPa)"
+    ];
+    for (const row of historyRows) {
+        if (!Number.isFinite(row.time)) continue;
+        lines.push([
+            formatJst(row.time),
+            Math.floor(row.time / 1000),
+            numeric(row.temperature),
+            numeric(row.humidity),
+            numeric(row.absolute_humidity),
+            numeric(row.dew_point),
+            numeric(row.co2),
+            numeric(row.pressure)
+        ].join(","));
+    }
+    if (lines.length === 1) {
+        document.getElementById("historyCsvStatus").textContent = "出力できるデータがありません。";
+        return;
+    }
+
+    // The browser creates this file locally; credentials are not included.
+    const csv = "\uFEFF" + lines.join("\r\n") + "\r\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const timestamp = formatJst(Date.now()).replace(/\D/g, "").slice(0, 12);
+    const filename = `room_history_${historyLoadedHours}h_${timestamp}_JST.csv`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    document.getElementById("historyCsvStatus").textContent =
+        `${lines.length - 1}件をCSVで保存しました（${historyLoadedHours}時間分、時刻はJST）。`;
 }

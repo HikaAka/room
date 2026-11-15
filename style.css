@@ -281,5 +281,31 @@ summary:hover{
 .historyControls select { background:#334155; color:white; border:1px solid #64748b;
     border-radius:8px; padding:10px; font-size:15px; }
 .historyControls .applyBtn { width:auto; height:44px; font-size:16px; padding:0 18px; }
+.historyControls .csvBtn { width:auto; height:44px; font-size:15px; padding:0 18px;
+    background:#2563eb; color:#fff; }
+#historyCsvStatus:empty { display:none; }
 .historyControls button:disabled { cursor:not-allowed; opacity:.55; }
 .chartWrap { position:relative; height:300px; width:100%; margin-top:14px; }
+
+/* HISTORY DASHBOARD V2 */
+.historyDashboard { margin-top: 22px; }
+.historyDashboard .cardTitle { margin-bottom: 6px; }
+.historyHint { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+.historyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+.historyPanel { min-width: 0; padding: 16px; background: rgba(15,23,42,.58); border: 1px solid #334155; border-radius: 14px; }
+.historyPanel h3 { font-size: 18px; line-height: 1.4; margin: 0 0 8px; }
+.historyPanel h3 small { color: #94a3b8; font-size: 12px; font-weight: normal; }
+.historyPanel .chartWrap { height: 285px; margin-top: 4px; }
+.historyDashboard label { color: #e2e8f0; }
+@media (max-width: 850px) {
+    .historyGrid { grid-template-columns: 1fr; }
+    .historyPanel .chartWrap { height: 260px; }
+}
+@media (max-width: 500px) {
+    body { padding: 12px; }
+    .historyDashboard { padding: 14px; }
+    .historyPanel { padding: 10px; }
+    .historyPanel .chartWrap { height: 245px; }
+    .historyControls { gap: 8px; }
+    .historyControls .applyBtn, .historyControls .csvBtn { width: 100%; }
+}

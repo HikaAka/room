@@ -177,31 +177,42 @@
 
 
 
-<!-- History (stored on ESP32, fetched via EMQX when requested) -->
-<div class="card" id="historyCard">
-    <div class="cardTitle">📈 センサ履歴</div>
-    <p class="subValue">保存先：ESP32 / 10分ごとの記録</p>
+<!-- History (stored on ESP32, fetched once via EMQX, rendered in four charts) -->
+<section class="card historyDashboard" id="historyCard">
+    <div class="cardTitle">📈 センサ履歴ダッシュボード</div>
+    <p class="subValue">ESP32内の履歴を一度だけ取得して、4つのグラフで比較します（記録間隔：10分）。</p>
     <div class="historyControls">
-        <label for="historyRange">期間</label>
-        <select id="historyRange">
+        <label for="historyRange">表示期間</label>
+        <select id="historyRange" aria-label="履歴の表示期間">
             <option value="24">24時間</option>
             <option value="168">7日間</option>
             <option value="720">30日間</option>
         </select>
-        <label for="historyMetric">項目</label>
-        <select id="historyMetric" onchange="renderHistoryChart()">
-            <option value="temperature">温度 (℃)</option>
-            <option value="humidity">湿度 (%)</option>
-            <option value="co2">CO₂ (ppm)</option>
-            <option value="pressure">気圧 (hPa)</option>
-            <option value="absolute_humidity">絶対湿度 (g/m³)</option>
-            <option value="dew_point">露点 (℃)</option>
-        </select>
-        <button id="loadHistoryBtn" class="applyBtn" type="button" onclick="requestHistory()">履歴を取得</button>
+        <button id="loadHistoryBtn" class="applyBtn" type="button" onclick="requestHistory()">履歴を取得・更新</button>
+        <button id="downloadHistoryCsvBtn" class="csvBtn" type="button" onclick="downloadHistoryCsv()" disabled>CSVダウンロード</button>
     </div>
-    <p class="subValue" id="historyStatus">接続後に「履歴を取得」を押してください。</p>
-    <div class="chartWrap"><canvas id="historyChart"></canvas></div>
-</div>
+    <p class="subValue" id="historyCsvStatus" role="status" aria-live="polite"></p>
+    <p class="subValue" id="historyStatus" role="status" aria-live="polite">接続後に「履歴を取得・更新」を押してください。</p>
+    <p class="historyHint">凡例を押すと線の表示を切り替えられます。線や点にカーソルを合わせると、その時刻の測定値を確認できます。CSVは取得完了後にダウンロードできます（日本時間・全6項目）。</p>
+    <div class="historyGrid">
+        <section class="historyPanel" aria-label="CO2濃度の履歴">
+            <h3>🫁 CO₂濃度 <small>ppm</small></h3>
+            <div class="chartWrap"><canvas id="historyCo2Chart" aria-label="CO2濃度グラフ" role="img"></canvas></div>
+        </section>
+        <section class="historyPanel" aria-label="温度・露点温度の履歴">
+            <h3>🌡 温度・露点 <small>℃</small></h3>
+            <div class="chartWrap"><canvas id="historyTemperatureChart" aria-label="温度と露点温度グラフ" role="img"></canvas></div>
+        </section>
+        <section class="historyPanel" aria-label="湿度の履歴">
+            <h3>💧 湿度 <small>相対湿度 % / 絶対湿度 g/m³</small></h3>
+            <div class="chartWrap"><canvas id="historyHumidityChart" aria-label="相対湿度と絶対湿度グラフ" role="img"></canvas></div>
+        </section>
+        <section class="historyPanel" aria-label="気圧の履歴">
+            <h3>🌤 気圧 <small>hPa</small></h3>
+            <div class="chartWrap"><canvas id="historyPressureChart" aria-label="気圧グラフ" role="img"></canvas></div>
+        </section>
+    </div>
+</section>
 
 <!-- Aircon -->
 
