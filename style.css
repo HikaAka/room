@@ -309,3 +309,16 @@ summary:hover{
     .historyControls { gap: 8px; }
     .historyControls .applyBtn, .historyControls .csvBtn { width: 100%; }
 }
+
+/* HISTORY V4 native SVG charts: no CDN is required */
+.historyPanel .chartWrap { height: auto; min-height: 320px; overflow: hidden; }
+.historyPanel .chartWrap canvas { display:none !important; }
+.nativeHistoryChart { width: 100%; min-width: 0; color: #e2e8f0; }
+.nativeHistoryChart svg { width: 100%; display: block; overflow: visible; }
+.historyLegend { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:4px; }
+.historyLegendBtn { width:auto; height:auto; min-height:30px; margin:0; padding:5px 10px; border:1px solid #475569; border-radius:8px; background:#263347; color:#f1f5f9; font-size:12px; font-weight:500; display:flex; align-items:center; gap:6px; }
+.historyLegendBtn[aria-pressed="false"] { opacity:.45; text-decoration:line-through; }
+.historyLegendDot { width:9px;height:9px;flex:none;border-radius:50%; }
+.historyHoverInfo { font-size:12px; line-height:1.6; min-height:38px; padding:4px 8px; color:#e2e8f0; background:rgba(15,23,42,.65); border-radius:7px; overflow-wrap:anywhere; }
+.historyEmpty { color:#94a3b8; font-size:14px; padding:30px 0; text-align:center; }
+@media(max-width:500px) { .historyPanel .chartWrap { min-height:315px; } .historyLegendBtn { font-size:11px; padding:5px 7px; } }
