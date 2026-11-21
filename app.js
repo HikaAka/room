@@ -156,6 +156,7 @@ client.on(
                 )
                 .innerText =
                 data.dew_point;
+            updateLiveInsights(data);
         }
 
         //----------------------------------
@@ -227,20 +228,11 @@ function publishMqtt(topic, value) {
     client.publish(topic, value);
 }
 
-function lightAllOn()
-{
-    publishMqtt(
-        "room/light/all_on",
-        "1"
-    );
+function lightAllOn() {
+    sendLightSequence("all_on", readLightRepeatCount(), readLightRepeatGap(), "ライト全点灯");
 }
-
-function lightOff()
-{
-    publishMqtt(
-        "room/light/all_off",
-        "1"
-    );
+function lightOff() {
+    sendLightSequence("all_off", readLightRepeatCount(), readLightRepeatGap(), "ライト消灯");
 }
 
 function lightNight()
@@ -534,7 +526,9 @@ function handleHistoryMessage(raw) {
         setHistoryStatus(incomplete
             ? `${historyRows.length} 件受信（欠落の可能性があります。再取得してください）`
             : `${historyRows.length} 件取得しました。${historyRows.length ? "項目を切り替えて表示できます。" : "保存データはまだありません。"}`);
+        enrichHistoryRows();
         renderHistoryCharts();
+        renderInsightsFromHistory();
     }
 }
 
@@ -621,7 +615,7 @@ function renderOneHistoryChart(spec) {
     // 各軸に紐づく表示中系列から、その軸の最小/最大を計算する。
     const axisRanges = spec.axes.map((ax,axisIndex) => {
         const values = spec.series.filter(s => s.axis === axisIndex && vis[s.key])
-          .flatMap(s => historyRows.map(row => Number(row[s.key])).filter(Number.isFinite));
+          .flatMap(s => historyRows.map(row => row[s.key] == null ? NaN : Number(row[s.key])).filter(Number.isFinite));
         let lo = values.length ? Math.min(...values) : 0;
         let hi = values.length ? Math.max(...values) : 1;
         const spread = Math.max((hi-lo)*0.1, Math.abs(hi)*0.002, 0.05);
@@ -653,7 +647,7 @@ function renderOneHistoryChart(spec) {
         let path="";
         let drawing = false;
         for (const row of historyRows) {
-            const v=Number(row[s.key]);
+            const v=row[s.key] == null ? NaN : Number(row[s.key]);
             if(!Number.isFinite(v) || !Number.isFinite(row.time)) { drawing = false; continue; }
             const x=px(row.time).toFixed(2), y=range.py(v).toFixed(2);
             path+=(drawing ? "L" : "M")+x+","+y+" ";
@@ -664,7 +658,7 @@ function renderOneHistoryChart(spec) {
            "stroke-linecap":"round","stroke-linejoin":"round", "vector-effect":"non-scaling-stroke"}));
         if (historyRows.length <= 36) {
             for (const row of historyRows) {
-                const v=Number(row[s.key]);
+                const v=row[s.key] == null ? NaN : Number(row[s.key]);
                 if(Number.isFinite(v)) svg.appendChild(svgEl("circle",{cx:px(row.time), cy:range.py(v),r:3,fill:s.color}));
             }
         }
@@ -773,3 +767,275 @@ function downloadHistoryCsv() {
     document.getElementById("historyCsvStatus").textContent =
         `${lines.length - 1}件をCSVで保存しました（${historyLoadedHours}時間分、時刻はJST）。`;
 }
+
+
+// ============================================================
+// HIKARU HOME V5: tabs, browser-based light schedules,
+//              scientific calculations and extra history charts.
+// NOTE: schedule rules are local to this browser, NOT stored on ESP32.
+// ============================================================
+
+function activateTab(tabName) {
+    const panel = document.getElementById(`panel-${tabName}`);
+    if (!panel) return;
+    document.querySelectorAll(".tabPanel").forEach(el => { el.hidden = el !== panel; });
+    document.querySelectorAll(".tabNav [role=tab]").forEach(button => {
+        const active = button.dataset.tab === tabName;
+        button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
+    });
+    // Hidden panels have 0 width: redraw the SVG with correct dimensions.
+    if ((tabName === "history" || tabName === "insights") && historyRows.length) {
+        requestAnimationFrame(() => renderHistoryCharts());
+    }
+}
+document.querySelectorAll("[data-tab], [data-open-tab]").forEach(button => {
+    button.addEventListener("click", () => activateTab(button.dataset.tab || button.dataset.openTab));
+});
+document.querySelectorAll(".tabNav [role=tab]").forEach((button, index, items) => {
+    button.addEventListener("keydown", event => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 :
+            (index + (event.key === "ArrowRight" ? 1 : items.length - 1)) % items.length;
+        items[next].focus(); activateTab(items[next].dataset.tab);
+    });
+});
+
+// Climate calculations. All temperature inputs: Celsius, humidity: percent.
+function calcEnvironment(temperature, humidity, dewpoint) {
+    const t = Number(temperature), rh = Number(humidity), d = Number(dewpoint);
+    if (![t, rh].every(Number.isFinite) || t < -40 || t > 65 || rh < 0 || rh > 100) return null;
+    const discomfortIndex = 0.81 * t + 0.01 * rh * (0.99 * t - 14.3) + 46.3;
+    // FAO-56, saturation vapor pressure in kPa, near-water approximation.
+    const saturation = 0.6108 * Math.exp(17.27 * t / (t + 237.3));
+    const vpd = saturation * (1 - rh / 100);
+    const dewGap = Number.isFinite(d) && d <= t + 1 ? t - d : null;
+    return {discomfortIndex, vpd, dewGap};
+}
+function fixedOrDash(value, digits = 1) { return Number.isFinite(value) ? value.toFixed(digits) : "--"; }
+function classifyDiscomfort(value) {
+    if (value < 60) return "寒く感じやすい条件";
+    if (value < 65) return "やや涼しい条件";
+    if (value < 70) return "比較的過ごしやすい条件";
+    if (value < 75) return "やや暑さを感じやすい条件";
+    if (value < 80) return "暑さを感じやすい条件";
+    return "蒸し暑さを感じやすい条件";
+}
+function updateLiveInsights(data) {
+    const env = calcEnvironment(data.temperature, data.humidity, data.dew_point);
+    if (!env) return;
+    document.getElementById("insightDi").textContent = fixedOrDash(env.discomfortIndex);
+    document.getElementById("insightDiLabel").textContent = classifyDiscomfort(env.discomfortIndex);
+    document.getElementById("insightVpd").textContent = fixedOrDash(env.vpd, 2);
+    document.getElementById("insightVpdLabel").textContent = env.vpd < 0.5 ? "水蒸気で飽和に近い空気" : env.vpd > 2 ? "水蒸気圧差が比較的大きい" : "水蒸気圧差の参考値";
+    document.getElementById("insightDewGap").textContent = fixedOrDash(env.dewGap);
+    document.getElementById("insightDewLabel").textContent = Number.isFinite(env.dewGap) ? `室温から約${env.dewGap.toFixed(1)}°C低い露点` : "露点の有効な値がありません";
+    const co2 = Number(data.co2);
+    const humidity = Number(data.humidity);
+    const notes = [];
+    if (Number.isFinite(co2)) {
+        notes.push(co2 >= 1000 ? `CO₂は${Math.round(co2)}ppm。換気や滞在状況を確認する目安になります。` : `CO₂は${Math.round(co2)}ppm。今の値だけで換気量は判断できません。`);
+    }
+    if (humidity >= 65) notes.push(`相対湿度${humidity.toFixed(0)}%。湿度が高めなので、窓などの結露に注意。`);
+    else if (humidity < 35) notes.push(`相対湿度${humidity.toFixed(0)}%。乾燥側に寄っています。`);
+    else notes.push(`不快指数は${env.discomfortIndex.toFixed(1)}（${classifyDiscomfort(env.discomfortIndex)}）。`);
+    document.getElementById("liveSummary").textContent = notes.join(" ");
+}
+
+// Add four comparison charts using the existing independent SVG renderer.
+historyChartSpecs.push(
+    {id:"insightDiChart",axes:[{label:"DI"}],series:[{key:"discomfortIndex",label:"不快指数",color:"#fb923c",axis:0,unit:"DI"}]},
+    {id:"insightVpdChart",axes:[{label:"kPa"}],series:[{key:"vpd",label:"VPD",color:"#22d3ee",axis:0,unit:"kPa"}]},
+    {id:"insightDewChart",axes:[{label:"℃"}],series:[{key:"dewGap",label:"室温と露点の差",color:"#c084fc",axis:0,unit:"℃"}]},
+    {id:"insightCo2MovingChart",axes:[{label:"ppm"}],series:[{key:"co2Moving",label:"CO₂約1時間平均",color:"#4ade80",axis:0,unit:"ppm"}]}
+);
+function enrichHistoryRows() {
+    for (let i = 0; i < historyRows.length; i++) {
+        const row = historyRows[i];
+        const result = calcEnvironment(row.temperature, row.humidity, row.dew_point);
+        row.discomfortIndex = result ? result.discomfortIndex : null;
+        row.vpd = result ? result.vpd : null;
+        row.dewGap = result ? result.dewGap : null;
+        // Time-window-based moving average, tolerate missing samples.
+        const samples = historyRows.slice(Math.max(0,i - 6), i + 1)
+            .filter(x => Number.isFinite(x.co2) && row.time - x.time <= 3600000);
+        row.co2Moving = samples.length ? samples.reduce((sum,x) => sum + x.co2, 0) / samples.length : null;
+    }
+}
+function renderInsightsFromHistory() {
+    if (!historyRows.length) {
+        ["insightCo2High","insightHumidityGood","insightTempRange","insightCo2Average"].forEach(id => {
+            document.getElementById(id).textContent="--";
+        });
+        document.getElementById("hourlyCo2Chart").textContent="保存された履歴がありません。";
+        return;
+    }
+    let highMinutes = 0;
+    const co2Values = [], tempValues = [];
+    let humidValid = 0, humidGood = 0;
+    const bins = Array.from({length:24}, () => []);
+    for (let i=0;i<historyRows.length;i++) {
+        const row=historyRows[i];
+        if (Number.isFinite(row.co2)) {
+            co2Values.push(row.co2);
+            const h = new Date(row.time + 9*3600000).getUTCHours();
+            bins[h].push(row.co2);
+        }
+        if (Number.isFinite(row.temperature)) tempValues.push(row.temperature);
+        if (Number.isFinite(row.humidity)) {
+            humidValid++;
+            if (row.humidity >= 40 && row.humidity <= 60) humidGood++;
+        }
+        if (i < historyRows.length - 1 && row.co2 >= 1000) {
+            const delta=(historyRows[i+1].time-row.time)/60000;
+            // Estimate only when consecutive observations are roughly 10 minutes apart.
+            if (delta > 0 && delta <= 15) highMinutes += delta;
+        }
+    }
+    document.getElementById("insightCo2High").textContent = `${(highMinutes/60).toFixed(1)} 時間`;
+    document.getElementById("insightHumidityGood").textContent = humidValid ? `${Math.round(humidGood/humidValid*100)}%` : "--";
+    document.getElementById("insightTempRange").textContent = tempValues.length ? `${Math.max(...tempValues).toFixed(1)} / ${Math.min(...tempValues).toFixed(1)} °C` : "--";
+    document.getElementById("insightCo2Average").textContent = co2Values.length ? `${Math.round(co2Values.reduce((sum,x)=>sum+x,0)/co2Values.length)} ppm` : "--";
+    const chart=document.getElementById("hourlyCo2Chart");
+    chart.replaceChildren();
+    const averages=bins.map(list=>list.length ? list.reduce((a,b)=>a+b,0)/list.length : null);
+    const max=Math.max(1000, ...averages.filter(Number.isFinite));
+    averages.forEach((avg,h) => {
+        const bar=document.createElement("div");bar.className="hourlyBar";
+        bar.title=avg===null ? `${h}時: データなし` : `${h}時: 平均${Math.round(avg)}ppm（${bins[h].length}件）`;
+        const stem=document.createElement("span");
+        stem.style.height=avg===null ? "2px" : `${Math.max(4,avg/max*97)}px`;
+        if (avg===null) stem.style.background="#415168";
+        const label=document.createElement("small");label.textContent=h%3===0?`${h}`:"";
+        bar.append(stem,label);chart.appendChild(bar);
+    });
+}
+
+// Repeat ONLY explicit ON/OFF commands. Do not repeat toggle-like modes.
+let lightSequenceBusy = false;
+function readLightRepeatCount() { return Number(document.getElementById("lightRepeatCount").value) || 1; }
+function readLightRepeatGap() { return Number(document.getElementById("lightRepeatGap").value) || 1000; }
+async function sendLightSequence(action, repeat, gap, title) {
+    const status=document.getElementById("lightActionStatus");
+    if (!["all_on","all_off"].includes(action)) return false;
+    repeat=Math.max(1,Math.min(5,Math.trunc(Number(repeat)||1)));
+    gap=Math.max(500,Math.min(2000,Math.trunc(Number(gap)||1000)));
+    if (!client || !client.connected) { status.textContent="MQTTに接続してから操作してください。";return false; }
+    if (lightSequenceBusy) { status.textContent="前の送信が完了してから操作してください。";return false; }
+    lightSequenceBusy=true;
+    let sent=0;
+    try {
+        for(let i=0;i<repeat;i++) {
+            if (!client || !client.connected) throw new Error("MQTT接続が切断されました");
+            // MQTT QoS 0: callback means broker network send path completed,
+            // not that the real light has changed state.
+            await new Promise((resolve,reject) => client.publish(`room/light/${action}`,"1",{qos:0,retain:false},err => err?reject(err):resolve()));
+            sent++;
+            status.textContent=`${title}: ${sent}/${repeat}回 送信済み`;
+            if(i+1<repeat) await new Promise(resolve=>setTimeout(resolve,gap));
+        }
+        status.textContent=`${title}: ${sent}回送信しました（実際の点灯・消灯の確認ではありません）。`;
+        return true;
+    } catch(err) {
+        status.textContent=`${title}: ${sent}回送信後に停止：${err.message}`;
+        return false;
+    } finally { lightSequenceBusy=false; }
+}
+
+// Browser-only schedules: stored locally, not on ESP32 or EMQX.
+const SCHEDULE_STORAGE_KEY="hikaru-home-v5-light-schedules";
+const SCHEDULE_RUN_KEY="hikaru-home-v5-schedule-runs";
+const SCHEDULE_LOG_KEY="hikaru-home-v5-schedule-log";
+function readLocalJson(key,fallback) {
+    try { const value=JSON.parse(localStorage.getItem(key)); return value === null ? fallback : value; }
+    catch(e) { return fallback; }
+}
+let lightSchedules=readLocalJson(SCHEDULE_STORAGE_KEY,[]);
+if (!Array.isArray(lightSchedules)) lightSchedules=[];
+lightSchedules=lightSchedules.filter(s=>s && /^\d{2}:\d{2}$/.test(s.time) && ["all_on","all_off"].includes(s.action));
+let scheduleRunMarks=readLocalJson(SCHEDULE_RUN_KEY,{});
+if (!scheduleRunMarks || typeof scheduleRunMarks !== "object" || Array.isArray(scheduleRunMarks)) scheduleRunMarks={};
+let scheduleLogs=readLocalJson(SCHEDULE_LOG_KEY,[]);
+if(!Array.isArray(scheduleLogs))scheduleLogs=[];
+function saveScheduleSettings(){try{localStorage.setItem(SCHEDULE_STORAGE_KEY,JSON.stringify(lightSchedules));}catch(e){document.getElementById("scheduleStatus").textContent="ブラウザ設定の保存に失敗しました";}}
+function dayMatches(dayRule, weekday) {
+    const map={daily:[0,1,2,3,4,5,6],weekdays:[1,2,3,4,5],weekend:[0,6],sun:[0],mon:[1],tue:[2],wed:[3],thu:[4],fri:[5],sat:[6]};
+    return (map[dayRule]||[]).includes(weekday);
+}
+function ruleDaysText(value){return {daily:"毎日",weekdays:"平日",weekend:"土日",sun:"日",mon:"月",tue:"火",wed:"水",thu:"木",fri:"金",sat:"土"}[value]||value;}
+function renderScheduleList() {
+    const list=document.getElementById("scheduleList");list.replaceChildren();
+    document.getElementById("scheduleCount").textContent=`${lightSchedules.length}件`;
+    if(!lightSchedules.length){const p=document.createElement("p");p.className="muted";p.textContent="まだ予約はありません。";list.appendChild(p);return;}
+    for (const item of lightSchedules) {
+        const row=document.createElement("div");row.className="scheduleItem";
+        const info=document.createElement("div");const heading=document.createElement("h4");heading.textContent=item.time;
+        const description=document.createElement("p");description.textContent=`${ruleDaysText(item.days)} · ${item.action==="all_on"?"全点灯":"消灯"} · ${item.repeat}回 / ${item.gap/1000}秒間隔`;
+        info.append(heading,description);
+        const actions=document.createElement("div");actions.className="scheduleActions";
+        const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.checked=item.enabled!==false;checkbox.setAttribute("aria-label",`${item.time}の予約を有効化`);
+        checkbox.addEventListener("change",()=>{item.enabled=checkbox.checked;saveScheduleSettings();renderScheduleList();});
+        const test=document.createElement("button");test.type="button";test.textContent="今すぐ試す";test.addEventListener("click",()=>{sendLightSequence(item.action,item.repeat,item.gap,"予約テスト");});
+        const remove=document.createElement("button");remove.type="button";remove.textContent="削除";remove.addEventListener("click",()=>{lightSchedules=lightSchedules.filter(s=>s.id!==item.id);saveScheduleSettings();renderScheduleList();});
+        actions.append(checkbox,test,remove);row.append(info,actions);list.appendChild(row);
+    }
+}
+function logSchedule(message) {
+    const timestamp=new Date().toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",hour12:false});
+    scheduleLogs.unshift(`${timestamp} ${message}`); scheduleLogs=scheduleLogs.slice(0,20);
+    try{localStorage.setItem(SCHEDULE_LOG_KEY,JSON.stringify(scheduleLogs));}catch(e){}
+    renderScheduleLog();
+}
+function renderScheduleLog() {
+    const el=document.getElementById("scheduleLogList");el.replaceChildren();
+    if(!scheduleLogs.length){el.textContent="実行記録なし";return;}
+    for(const entry of scheduleLogs.slice(0,8)){
+        const p=document.createElement("p");p.className="logEntry";p.textContent=String(entry);el.appendChild(p);
+    }
+}
+function getJstClock() {
+    const d=new Date(Date.now()+9*3600000);
+    const n=v=>String(v).padStart(2,"0");
+    return {day:`${d.getUTCFullYear()}-${n(d.getUTCMonth()+1)}-${n(d.getUTCDate())}`,
+        time:`${n(d.getUTCHours())}:${n(d.getUTCMinutes())}`,
+        dayOfWeek:d.getUTCDay(), seconds:d.getUTCSeconds()};
+}
+async function runScheduleRule(rule,marker) {
+    logSchedule(`実行開始: ${rule.time} ${rule.action==="all_on"?"全点灯":"消灯"}`);
+    const success=await sendLightSequence(rule.action,rule.repeat,rule.gap,"予約実行");
+    logSchedule(success?`送信完了: ${rule.time}`:`送信失敗または中断: ${rule.time}`);
+}
+function tickLightSchedules() {
+    const clock=getJstClock();
+    document.getElementById("scheduleStatus").textContent=`JST ${clock.day} ${clock.time}:${String(clock.seconds).padStart(2,"0")} / MQTT ${client?.connected?"接続中":"未接続"} / ページを開いている間のみ実行`;
+    if (!client || !client.connected) return;
+    for(const rule of lightSchedules) {
+        if(rule.enabled===false || rule.time!==clock.time || !dayMatches(rule.days,clock.dayOfWeek))continue;
+        const marker=`${clock.day}/${rule.id}`;
+        // Cross-tab best-effort marker: multiple tabs are not supported for scheduling.
+        if(scheduleRunMarks[marker] || readLocalJson(SCHEDULE_RUN_KEY,{})[marker])continue;
+        scheduleRunMarks[marker]=true;
+        const keys=Object.keys(scheduleRunMarks);
+        if(keys.length>200)keys.slice(0,keys.length-200).forEach(k=>delete scheduleRunMarks[k]);
+        try{localStorage.setItem(SCHEDULE_RUN_KEY,JSON.stringify(scheduleRunMarks));}catch(e){}
+        runScheduleRule(rule,marker);
+    }
+}
+document.getElementById("scheduleForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if(lightSchedules.length>=25){document.getElementById("scheduleStatus").textContent="予約は25件までです";return;}
+    const time=document.getElementById("scheduleTime").value;
+    if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))return;
+    const item={id:"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),time,
+        action:document.getElementById("scheduleAction").value,
+        days:document.getElementById("scheduleDays").value,
+        repeat:Number(document.getElementById("scheduleRepeat").value),
+        gap:Number(document.getElementById("scheduleGap").value),enabled:true};
+    lightSchedules.push(item);saveScheduleSettings();renderScheduleList();
+    document.getElementById("scheduleStatus").textContent=`${time}の予約を保存しました（ページを開いているときのみ実行）。`;
+});
+renderScheduleList();renderScheduleLog();tickLightSchedules();
+setInterval(tickLightSchedules,3000);
+window.addEventListener("focus",tickLightSchedules);
+document.addEventListener("visibilitychange",tickLightSchedules);

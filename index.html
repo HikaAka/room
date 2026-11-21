@@ -1,369 +1,96 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-<title>HIKARU HOME</title>
-
-<link rel="stylesheet"
-      href="style.css?v=4">
-
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<!-- 履歴グラフはローカルJSのSVG描画を使います（Chart.js不要） -->
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d1425">
+  <meta name="description" content="HIKARU HOME - ESP32のセンサ履歴、家電操作、環境分析">
+  <title>HIKARU HOME — Smart room</title>
+  <link rel="stylesheet" href="style.css?v=5">
+  <script defer src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script defer src="app.js?v=5"></script>
 </head>
-
 <body>
+<div class="shell">
+  <header class="siteHeader">
+    <div class="brand"><span class="brandGlyph">⌂</span><div><div class="brandTop">SMART HOME / ESP32</div><h1>HIKARU <span>HOME</span></h1></div></div>
+    <div class="headerStatus"><span id="mqttStatus" class="statusOff" role="status">● Disconnected</span><span class="lastUpdate">最終更新 <span id="mqttLastUpdate">--:--:--</span></span></div>
+  </header>
+  <nav class="tabNav" role="tablist" aria-label="画面切替">
+    <button type="button" role="tab" id="nav-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">⌂ <span>ホーム</span></button>
+    <button type="button" role="tab" id="nav-history" aria-controls="panel-history" aria-selected="false" data-tab="history">▥ <span>履歴</span></button>
+    <button type="button" role="tab" id="nav-control" aria-controls="panel-control" aria-selected="false" data-tab="control">⌘ <span>家電操作</span></button>
+    <button type="button" role="tab" id="nav-schedule" aria-controls="panel-schedule" aria-selected="false" data-tab="schedule">◷ <span>タイマー</span></button>
+    <button type="button" role="tab" id="nav-insights" aria-controls="panel-insights" aria-selected="false" data-tab="insights">◈ <span>環境分析</span></button>
+  </nav>
+  <div class="connectionRow">
+    <section class="loginCard" id="mqttLoginCard" aria-label="EMQXに接続">
+      <div><strong>🔐 EMQX接続</strong><p>既存のMQTT接続情報を使います。パスワードをサイト内に保存しません。</p></div>
+      <form id="mqttLoginForm" autocomplete="on"><label>ユーザー名<input id="mqttUsername" name="username" value="web_viewer" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label>パスワード<input id="mqttPassword" name="password" type="password" autocomplete="current-password" placeholder="EMQX パスワード" required></label><button class="button primary" id="mqttConnectBtn" type="submit" disabled>接続する</button></form>
+    </section>
+    <div class="connectionNote">最終受信トピック <span id="mqttLastTopic">—</span></div>
+  </div>
 
-<div class="title">
-    HIKARU HOME
-</div>
+  <main>
+    <section class="tabPanel" id="panel-overview" role="tabpanel" aria-labelledby="nav-overview">
+      <div class="sectionHeading"><div><div class="eyebrow">LIVE MONITOR</div><h2>いまの部屋</h2><p>ESP32で計測したリアルタイムの環境データ</p></div><div class="pill">センサ更新を待機中</div></div>
+      <div class="metricGrid">
+        <article class="metricCard"><div class="metricMeta"><span class="metricIcon orange">🌡</span><span>室温</span></div><div class="metricValue"><span id="tempValue">--.-</span><small>°C</small></div><div class="metricFoot">Temperature</div></article>
+        <article class="metricCard"><div class="metricMeta"><span class="metricIcon cyan">💧</span><span>相対湿度</span></div><div class="metricValue"><span id="humidityValue">--.-</span><small>%</small></div><div class="metricFoot">絶対湿度 <span id="absoluteHumidityValue">--.-</span> g/m³</div></article>
+        <article class="metricCard"><div class="metricMeta"><span class="metricIcon green">◉</span><span>CO₂濃度</span></div><div class="metricValue"><span id="co2Value">---</span><small>ppm</small></div><div class="metricFoot">数値の変化から換気傾向を確認</div></article>
+        <article class="metricCard"><div class="metricMeta"><span class="metricIcon purple">◌</span><span>気圧</span></div><div class="metricValue"><span id="pressureValue">----</span><small>hPa</small></div><div class="metricFoot">露点 <span id="dewPointValue">--.-</span> °C</div></article>
+      </div>
+      <div class="twoCols topGap"><article class="surface"><div class="cardHeader"><div><div class="eyebrow">ENVIRONMENT SUMMARY</div><h3>環境のヒント</h3></div><span class="smallTag">参考値</span></div><p id="liveSummary" class="summaryText">センサから値を受信すると、ここに環境の解説を表示します。</p><p class="muted tiny">CO₂濃度のみでは換気量や健康影響を断定できません。</p></article><article class="surface"><div class="cardHeader"><div><div class="eyebrow">QUICK NAVIGATION</div><h3>何を確認する？</h3></div></div><div class="quickLinks"><button type="button" data-open-tab="history">▥ 過去の変化を見る <span>›</span></button><button type="button" data-open-tab="control">⌘ エアコン・ライトを操作 <span>›</span></button><button type="button" data-open-tab="insights">◈ 計算した環境指数を分析 <span>›</span></button></div></article></div>
+    </section>
 
-<!-- EMQX Connection: ブラウザのパスワードマネージャーに対応 -->
-<div class="card" id="mqttLoginCard">
-    <div class="cardTitle">🔐 EMQX Connection</div>
-    <!-- JSが読み込まれるまで送信ボタンを無効にして、誤送信を防止 -->
-    <form id="mqttLoginForm" autocomplete="on">
-        <label for="mqttUsername">MQTT Username</label>
-        <input id="mqttUsername" name="username" type="text"
-               value="web_viewer" autocomplete="username"
-               autocapitalize="none" spellcheck="false" required>
+    <section class="tabPanel" id="panel-history" role="tabpanel" aria-labelledby="nav-history" hidden>
+      <div class="sectionHeading"><div><div class="eyebrow">SENSOR ARCHIVE</div><h2>センサ履歴</h2><p>ESP32のLittleFSに保存された10分間隔の測定値</p></div></div>
+      <section class="surface historyDashboard" id="historyCard">
+        <div class="historyControls"><label for="historyRange">期間</label><select id="historyRange"><option value="24">過去24時間</option><option value="168">過去7日</option><option value="720">過去30日</option></select><button id="loadHistoryBtn" class="button primary" type="button" onclick="requestHistory()">↻ 履歴を取得・更新</button><button id="downloadHistoryCsvBtn" class="button secondary" type="button" onclick="downloadHistoryCsv()" disabled>↓ CSVダウンロード</button></div>
+        <div class="statusLine"><p id="historyStatus" role="status" aria-live="polite">接続後に「履歴を取得・更新」を押してください。</p><p id="historyCsvStatus" role="status"></p></div>
+        <p class="muted tiny">1回取得したデータを4グラフで共有。凡例をクリックすると表示を切り替えられます。取得完了した履歴はCSVに保存できます。</p>
+        <div class="historyGrid">
+          <section class="historyPanel"><h3><span class="dot greenDot"></span> CO₂濃度 <small>ppm</small></h3><div class="chartWrap"><canvas id="historyCo2Chart" aria-label="CO2履歴"></canvas></div></section>
+          <section class="historyPanel"><h3><span class="dot orangeDot"></span> 室温・露点 <small>°C</small></h3><div class="chartWrap"><canvas id="historyTemperatureChart" aria-label="温度履歴"></canvas></div></section>
+          <section class="historyPanel"><h3><span class="dot cyanDot"></span> 相対湿度・絶対湿度 <small>% / g/m³</small></h3><div class="chartWrap"><canvas id="historyHumidityChart" aria-label="湿度履歴"></canvas></div></section>
+          <section class="historyPanel"><h3><span class="dot purpleDot"></span> 気圧 <small>hPa</small></h3><div class="chartWrap"><canvas id="historyPressureChart" aria-label="気圧履歴"></canvas></div></section>
+        </div>
+      </section>
+    </section>
 
-        <label for="mqttPassword">MQTT Password</label>
-        <input id="mqttPassword" name="password" type="password"
-               placeholder="EMQXパスワード"
-               autocomplete="current-password" required>
-
-        <button id="mqttConnectBtn" class="connectBtn" type="submit" disabled>CONNECT</button>
-    </form>
-    <div class="subValue">
-        ブラウザのパスワードマネージャーから自動入力できます。
-        サイト側ではパスワードを永続保存しません。
-    </div>
-</div>
-
-<!-- MQTT -->
-<div class="card">
-
-    MQTT
-
-    <span
-        id="mqttStatus"
-        class="statusOff">
-
-        ● Disconnected
-
-    </span>
-
-    <div class="subValue">
-
-        Last Update :
-        <span id="mqttLastUpdate">
-            --:--:--
-        </span>
-
-        <br>
-
-        Topic :
-        <span id="mqttLastTopic">
-            ---
-        </span>
-
-    </div>
-
-</div>
-
-<div class="card">
-
-    <div class="cardTitle">
-        🌤 Pressure
-    </div>
-
-    <div
-        class="bigValue"
-        id="pressureValue">
-
-        ----
-
-    </div>
-
-    <div>
-        hPa
-    </div>
-
-</div>
-      
-
-
-<!-- Sensor -->
-
-<div class="card">
-
-    <div class="cardTitle">
-        🌡 Temperature
-    </div>
-
-    <div
-        class="bigValue"
-        id="tempValue">
-
-        --.-
-
-    </div>
-
-</div>
-
-
-<div class="card">
-
-    <div class="cardTitle">
-        💧 Humidity
-    </div>
-
-    <div
-        class="bigValue"
-        id="humidityValue">
-
-        ---
-
-    </div>
-
-    <div class="subValue">
-
-        Absolute :
-        <span id="absoluteHumidityValue">
-
-            --.-
-
-        </span>
-
-        g/m³
-
-        <br>
-
-        Dew Point :
-        <span id="dewPointValue">
-
-            --.-
-
-        </span>
-
-        ℃
-
-    </div>
-
-</div>
-
-
-<div class="card">
-
-    <div class="cardTitle">
-        🫁 CO₂
-    </div>
-
-    <div
-        class="bigValue"
-        id="co2Value">
-
-        ---
-
-    </div>
-
-</div>
-
-
-
-<!-- History (stored on ESP32, fetched once via EMQX, rendered in four charts) -->
-<section class="card historyDashboard" id="historyCard">
-    <div class="cardTitle">📈 センサ履歴ダッシュボード</div>
-    <p class="subValue">ESP32内の履歴を一度だけ取得して、4つのグラフで比較します（記録間隔：10分）。</p>
-    <div class="historyControls">
-        <label for="historyRange">表示期間</label>
-        <select id="historyRange" aria-label="履歴の表示期間">
-            <option value="24">24時間</option>
-            <option value="168">7日間</option>
-            <option value="720">30日間</option>
-        </select>
-        <button id="loadHistoryBtn" class="applyBtn" type="button" onclick="requestHistory()">履歴を取得・更新</button>
-        <button id="downloadHistoryCsvBtn" class="csvBtn" type="button" onclick="downloadHistoryCsv()" disabled>CSVダウンロード</button>
-    </div>
-    <p class="subValue" id="historyCsvStatus" role="status" aria-live="polite"></p>
-    <p class="subValue" id="historyStatus" role="status" aria-live="polite">接続後に「履歴を取得・更新」を押してください。</p>
-    <p class="historyHint">凡例を押すと線の表示を切り替えられます。線や点にカーソルを合わせると、その時刻の測定値を確認できます。CSVは取得完了後にダウンロードできます（日本時間・全6項目）。</p>
-    <div class="historyGrid">
-        <section class="historyPanel" aria-label="CO2濃度の履歴">
-            <h3>🫁 CO₂濃度 <small>ppm</small></h3>
-            <div class="chartWrap"><canvas id="historyCo2Chart" aria-label="CO2濃度グラフ" role="img"></canvas></div>
+    <section class="tabPanel" id="panel-control" role="tabpanel" aria-labelledby="nav-control" hidden>
+      <div class="sectionHeading"><div><div class="eyebrow">DEVICE CONTROL</div><h2>家電操作</h2><p>ライトとエアコンの設定をまとめて操作</p></div></div>
+      <div class="twoCols deviceGrid">
+        <section class="surface"><div class="cardHeader"><div><div class="eyebrow">LIGHTING</div><h3>💡 ライト</h3></div><span class="smallTag" id="lightPower">OFF</span></div>
+          <div class="miniState">明るさ: <strong id="lightBrightness">MAX</strong> <span>・</span> タイマー: <strong id="lightTimer">OFF</strong></div>
+          <div class="lightActionGrid"><button type="button" class="bigAction lightOn" onclick="lightAllOn()"><span>☀</span> 全点灯</button><button type="button" class="bigAction lightOff" onclick="lightOff()"><span>◯</span> 消灯</button><button type="button" class="bigAction" onclick="lightNight()"><span>☾</span> 常夜灯</button><button type="button" class="bigAction" onclick="lightDim()"><span>◐</span> 減光</button></div>
+          <div class="formDivider"></div><div class="formGrid two"><label>点灯/消灯コマンドの送信回数<select id="lightRepeatCount"><option value="1">1回</option><option value="2">2回</option><option value="3" selected>3回（推奨）</option><option value="4">4回</option><option value="5">5回</option></select></label><label>送信間隔<select id="lightRepeatGap"><option value="500">0.5秒</option><option value="1000" selected>1秒</option><option value="1500">1.5秒</option><option value="2000">2秒</option></select></label></div><p class="muted tiny">点灯・消灯のみ複数回送信。常夜灯・減光・タイマー操作は1回送信します。IR受信による実際の点灯確認はできません。</p><button type="button" class="button ghost" onclick="lightTimer()">照明リモコンのTIMER信号を送信</button><p id="lightActionStatus" class="inlineStatus" role="status"></p>
         </section>
-        <section class="historyPanel" aria-label="温度・露点温度の履歴">
-            <h3>🌡 温度・露点 <small>℃</small></h3>
-            <div class="chartWrap"><canvas id="historyTemperatureChart" aria-label="温度と露点温度グラフ" role="img"></canvas></div>
+        <section class="surface"><div class="cardHeader"><div><div class="eyebrow">CLIMATE</div><h3>❄ エアコン</h3></div><span class="smallTag" id="airconMode">OFF</span></div><div class="airconTemp"><button type="button" onclick="tempDown()" aria-label="設定温度を下げる">−</button><div><strong id="airconTemp">26</strong><span>°C</span><small>設定温度</small></div><button type="button" onclick="tempUp()" aria-label="設定温度を上げる">＋</button></div>
+          <div class="modeGrid"><button class="autoBtn modeBtn" data-group="mode" data-value="AUTO" onclick="setAirconMode('AUTO')">AUTO</button><button class="coolBtn modeBtn" data-group="mode" data-value="COOL" onclick="setAirconMode('COOL')">冷房</button><button class="heatBtn modeBtn" data-group="mode" data-value="HEAT" onclick="setAirconMode('HEAT')">暖房</button><button class="dryBtn modeBtn" data-group="mode" data-value="DRY" onclick="setAirconMode('DRY')">除湿</button><button class="fanBtn modeBtn" data-group="mode" data-value="FAN" onclick="setAirconMode('FAN')">送風</button><button class="offBtn modeBtn" data-group="mode" data-value="OFF" onclick="setAirconMode('OFF')">OFF</button></div>
+          <details class="advanced"><summary>詳細設定</summary><div class="advancedBody"><div class="settingsRow"><span>風量 <strong id="airconFan">AUTO</strong></span><div><button class="optionBtn" data-group="fan" data-value="AUTO" onclick="setAirconFan('AUTO')">AUTO</button><button class="optionBtn" data-group="fan" data-value="LOW" onclick="setAirconFan('LOW')">LOW</button><button class="optionBtn" data-group="fan" data-value="MED" onclick="setAirconFan('MED')">MED</button><button class="optionBtn" data-group="fan" data-value="HIGH" onclick="setAirconFan('HIGH')">HIGH</button><button class="optionBtn" data-group="fan" data-value="MAX" onclick="setAirconFan('MAX')">MAX</button></div></div><div class="settingsRow"><span>上下風向 <strong id="airconSwingV">AUTO</strong></span><div><button class="optionBtn" data-group="swing_v" data-value="AUTO" onclick="setSwingV('AUTO')">AUTO</button><button class="optionBtn" data-group="swing_v" data-value="UP" onclick="setSwingV('UP')">UP</button><button class="optionBtn" data-group="swing_v" data-value="MID" onclick="setSwingV('MID')">MID</button><button class="optionBtn" data-group="swing_v" data-value="DOWN" onclick="setSwingV('DOWN')">DOWN</button><button class="optionBtn" data-group="swing_v" data-value="STOP" onclick="setSwingV('STOP')">STOP</button></div></div><div class="settingsRow"><span>左右風向 <strong id="airconSwingH">AUTO</strong></span><div><button class="optionBtn" data-group="swing_h" data-value="AUTO" onclick="setSwingH('AUTO')">AUTO</button><button class="optionBtn" data-group="swing_h" data-value="LEFT" onclick="setSwingH('LEFT')">LEFT</button><button class="optionBtn" data-group="swing_h" data-value="CENTER" onclick="setSwingH('CENTER')">CENTER</button><button class="optionBtn" data-group="swing_h" data-value="RIGHT" onclick="setSwingH('RIGHT')">RIGHT</button><button class="optionBtn" data-group="swing_h" data-value="STOP" onclick="setSwingH('STOP')">STOP</button></div></div><div class="settingsRow"><span>追加機能</span><div><button class="optionBtn" data-group="warp" data-value="ON" onclick="toggleWarp()">WARP <strong id="airconWarp">OFF</strong></button><button class="optionBtn" data-group="bio" data-value="ON" onclick="toggleBio()">BIO <strong id="airconBio">OFF</strong></button></div></div></div></details>
+          <button class="button primary full" onclick="applyAircon()">設定を送信（APPLY）</button><p class="muted tiny">設定変更後、APPLYを押すとESP32に送信します。</p>
         </section>
-        <section class="historyPanel" aria-label="湿度の履歴">
-            <h3>💧 湿度 <small>相対湿度 % / 絶対湿度 g/m³</small></h3>
-            <div class="chartWrap"><canvas id="historyHumidityChart" aria-label="相対湿度と絶対湿度グラフ" role="img"></canvas></div>
-        </section>
-        <section class="historyPanel" aria-label="気圧の履歴">
-            <h3>🌤 気圧 <small>hPa</small></h3>
-            <div class="chartWrap"><canvas id="historyPressureChart" aria-label="気圧グラフ" role="img"></canvas></div>
-        </section>
-    </div>
-</section>
+      </div>
+    </section>
 
-<!-- Aircon -->
+    <section class="tabPanel" id="panel-schedule" role="tabpanel" aria-labelledby="nav-schedule" hidden>
+      <div class="sectionHeading"><div><div class="eyebrow">AUTOMATIONS</div><h2>ライトタイマー</h2><p>決めた曜日・時刻に照明の点灯/消灯を送信</p></div><span class="pill">日本時間 JST</span></div>
+      <div class="warningBox"><strong>⚠ ブラウザ版のタイマーについて</strong><p>この版は<strong>ページを開いた状態・ネット接続中・MQTT接続中</strong>に限って実行します。タブを閉じる、端末のスリープ、ブラウザによるバックグラウンド停止で予約が実行されないことがあります。予約設定自体はこのブラウザに保存されますが、ESP32へは保存されません。確実な常時運転にはESP32側タイマーの追加が必要です。</p></div>
+      <div class="twoCols scheduleGrid"><section class="surface"><div class="cardHeader"><div><div class="eyebrow">CREATE RULE</div><h3>新しい予約を作る</h3></div></div><form id="scheduleForm" class="scheduleForm"><label>時刻（日本時間）<input id="scheduleTime" type="time" value="07:00" required></label><label>動作<select id="scheduleAction"><option value="all_on">ライトを全点灯</option><option value="all_off">ライトを消灯</option></select></label><label>曜日<select id="scheduleDays"><option value="daily">毎日</option><option value="weekdays">平日（月〜金）</option><option value="weekend">土日</option><option value="mon">月曜日</option><option value="tue">火曜日</option><option value="wed">水曜日</option><option value="thu">木曜日</option><option value="fri">金曜日</option><option value="sat">土曜日</option><option value="sun">日曜日</option></select></label><div class="formGrid two"><label>送信回数<select id="scheduleRepeat"><option value="1">1回</option><option value="2">2回</option><option value="3" selected>3回</option><option value="4">4回</option><option value="5">5回</option></select></label><label>送信間隔<select id="scheduleGap"><option value="500">0.5秒</option><option value="1000" selected>1秒</option><option value="1500">1.5秒</option><option value="2000">2秒</option></select></label></div><button type="submit" class="button primary full">＋ 予約を追加する</button></form></section>
+      <section class="surface"><div class="cardHeader"><div><div class="eyebrow">SAVED RULES</div><h3>登録した予約</h3></div><span id="scheduleCount" class="smallTag">0件</span></div><div id="scheduleList" class="scheduleList"><p class="muted">まだ予約はありません。</p></div><div class="formDivider"></div><p class="inlineStatus" id="scheduleStatus" role="status">現在時刻を確認中...</p><div class="scheduleLog"><strong>実行履歴（このブラウザ）</strong><div id="scheduleLogList" class="muted tiny">記録なし</div></div></section></div>
+    </section>
 
-<div class="card">
-
-    <div class="cardTitle">
-        ❄️ AIRCON
-    </div>
-
-    <p>
-        Mode :
-        <span id="airconMode">OFF</span>
-    </p>
-
-    <p>
-        Temp :
-        <span id="airconTemp">26</span>℃
-    </p>
-      <p>Fan : <span id="airconFan">AUTO</span></p>
-      <p>Swing V : <span id="airconSwingV">AUTO</span></p>
-      <p>Swing H : <span id="airconSwingH">AUTO</span></p>
-      <p>WARP : <span id="airconWarp">OFF</span></p>
-      <p>BIO : <span id="airconBio">OFF</span></p>
-    <button onclick="tempDown()">-</button>
-    <button onclick="tempUp()">+</button>
-
-    <br><br>
-
-<button class="autoBtn modeBtn" data-group="mode" data-value="AUTO" onclick="setAirconMode('AUTO')">AUTO</button>
-<button class="coolBtn modeBtn" data-group="mode" data-value="COOL" onclick="setAirconMode('COOL')">COOL</button>
-<button class="heatBtn modeBtn" data-group="mode" data-value="HEAT" onclick="setAirconMode('HEAT')">HEAT</button>
-<button class="dryBtn modeBtn" data-group="mode" data-value="DRY" onclick="setAirconMode('DRY')">DRY</button>
-<button class="fanBtn modeBtn" data-group="mode" data-value="FAN" onclick="setAirconMode('FAN')">FAN</button>
-<button class="offBtn modeBtn" data-group="mode" data-value="OFF" onclick="setAirconMode('OFF')">OFF</button>
-      
-<details>
-
-    <summary class="sectionTitle">
-        ⚙️ Advanced Settings
-    </summary>
-
-<div class="sectionTitle">Fan</div>
-
-<button class="optionBtn" data-group="fan" data-value="AUTO" onclick="setAirconFan('AUTO')">AUTO</button>
-<button class="optionBtn" data-group="fan" data-value="LOW" onclick="setAirconFan('LOW')">LOW</button>
-<button class="optionBtn" data-group="fan" data-value="MED" onclick="setAirconFan('MED')">MED</button>
-<button class="optionBtn" data-group="fan" data-value="HIGH" onclick="setAirconFan('HIGH')">HIGH</button>
-<button class="optionBtn" data-group="fan" data-value="MAX" onclick="setAirconFan('MAX')">MAX</button>
-
-<div class="sectionTitle">Swing V</div>
-
-<button class="optionBtn" data-group="swing_v" data-value="AUTO" onclick="setSwingV('AUTO')">AUTO</button>
-<button class="optionBtn" data-group="swing_v" data-value="UP" onclick="setSwingV('UP')">UP</button>
-<button class="optionBtn" data-group="swing_v" data-value="MID" onclick="setSwingV('MID')">MID</button>
-<button class="optionBtn" data-group="swing_v" data-value="DOWN" onclick="setSwingV('DOWN')">DOWN</button>
-<button class="optionBtn" data-group="swing_v" data-value="STOP" onclick="setSwingV('STOP')">STOP</button>
-
-<div class="sectionTitle">Swing H</div>
-
-<button class="optionBtn" data-group="swing_h" data-value="AUTO" onclick="setSwingH('AUTO')">AUTO</button>
-<button class="optionBtn" data-group="swing_h" data-value="LEFT" onclick="setSwingH('LEFT')">LEFT</button>
-<button class="optionBtn" data-group="swing_h" data-value="CENTER" onclick="setSwingH('CENTER')">CENTER</button>
-<button class="optionBtn" data-group="swing_h" data-value="RIGHT" onclick="setSwingH('RIGHT')">RIGHT</button>
-<button class="optionBtn" data-group="swing_h" data-value="STOP" onclick="setSwingH('STOP')">STOP</button>
-<div class="sectionTitle">Options</div>
-
-<button class="optionBtn" data-group="warp" data-value="ON" onclick="toggleWarp()">WARP</button>
-<button class="optionBtn" data-group="bio" data-value="ON" onclick="toggleBio()">BIO</button>
-
-</details>
-
-    <br><br>
-
-    <button class="applyBtn" onclick="applyAircon()">
-        APPLY
-    </button>
-
+    <section class="tabPanel" id="panel-insights" role="tabpanel" aria-labelledby="nav-insights" hidden>
+      <div class="sectionHeading"><div><div class="eyebrow">SCIENCE LAB</div><h2>環境分析</h2><p>取得済みセンサ値から計算する環境指数・統計</p></div><span class="pill">計算値・参考指標</span></div>
+      <div class="scienceGrid"><article class="scienceCard"><div class="metricMeta"><span class="metricIcon orange">◈</span>不快指数 DI</div><div class="scienceNumber" id="insightDi">--</div><p id="insightDiLabel">温湿度から計算</p><small>温度と相対湿度の経験式。個人の感じ方を表すものではありません。</small></article><article class="scienceCard"><div class="metricMeta"><span class="metricIcon cyan">≈</span>VPD（水蒸気圧不足量）</div><div class="scienceNumber"><span id="insightVpd">--</span><small>kPa</small></div><p id="insightVpdLabel">空気の乾燥力の目安</p><small>気温と相対湿度を使用。植物葉面のVPDとは異なります。</small></article><article class="scienceCard"><div class="metricMeta"><span class="metricIcon purple">◌</span>露点との差</div><div class="scienceNumber"><span id="insightDewGap">--</span><small>°C</small></div><p id="insightDewLabel">室温 − 露点</p><small>差が小さいほど飽和に近い。実際の結露には壁や窓の表面温度が必要です。</small></article></div>
+      <section class="surface topGap"><div class="cardHeader"><div><div class="eyebrow">ANALYZE HISTORY</div><h3>履歴から見る傾向</h3></div><button class="button secondary small" type="button" data-open-tab="history">履歴を取得する ›</button></div><p class="muted tiny">「履歴」タブで取得したデータをそのまま解析。追加のMQTT通信は不要です。</p><div class="statGrid"><div class="statTile"><div>CO₂ 1000ppm以上の推定時間</div><strong id="insightCo2High">--</strong><small>データ間隔の欠落は加算しません</small></div><div class="statTile"><div>相対湿度40〜60%の記録割合</div><strong id="insightHumidityGood">--</strong><small>医学的な安全判定ではありません</small></div><div class="statTile"><div>室温の最高 / 最低</div><strong id="insightTempRange">--</strong><small>取得した期間内</small></div><div class="statTile"><div>CO₂の平均値</div><strong id="insightCo2Average">--</strong><small>記録点の単純平均</small></div></div>
+      <div class="historyGrid insightCharts"><section class="historyPanel"><h3><span class="dot orangeDot"></span>不快指数の推移 <small>DI</small></h3><div class="chartWrap"><canvas id="insightDiChart"></canvas></div></section><section class="historyPanel"><h3><span class="dot cyanDot"></span>VPDの推移 <small>kPa</small></h3><div class="chartWrap"><canvas id="insightVpdChart"></canvas></div></section><section class="historyPanel"><h3><span class="dot purpleDot"></span>露点差の推移 <small>°C</small></h3><div class="chartWrap"><canvas id="insightDewChart"></canvas></div></section><section class="historyPanel"><h3><span class="dot greenDot"></span>CO₂の直近約1時間移動平均 <small>ppm</small></h3><div class="chartWrap"><canvas id="insightCo2MovingChart"></canvas></div></section></div>
+      <div class="hourlySection"><h3>🕒 時間帯別CO₂平均（日本時間）</h3><p class="muted tiny">履歴が複数日にわたるほど生活パターンを比較しやすくなります。各時間帯に記録された点の平均です。</p><div id="hourlyCo2Chart" class="hourlyChart"><p class="muted">履歴を取得すると表示されます。</p></div></div></section>
+      <section class="surface scienceNotes topGap"><h3>計算方法と注意点</h3><p><strong>不快指数 DI：</strong>0.81×気温 + 0.01×相対湿度×(0.99×気温−14.3) + 46.3。気温[°C]、湿度[%]。</p><p><strong>VPD：</strong>0.6108×exp(17.27×気温/(気温+237.3))×(1−相対湿度/100) [kPa]。空気の飽和水蒸気圧と実水蒸気圧の差。</p><p><strong>露点差：</strong>室温−露点温度。室温に対する飽和までの温度差。結露発生の断定はできません。</p><p><strong>CO₂の1000ppm：</strong>換気状況を振り返るための便宜的な目安であり、健康被害の境界値ではありません。</p></section>
+    </section>
+  </main>
+  <footer><span>HIKARU HOME <span class="muted">/ Powered by ESP32 & EMQX</span></span><span>履歴はESP32内・分析はブラウザ内・タイマー設定はブラウザ内</span></footer>
 </div>
-
-<!-- Light -->
-
-<div class="card">
-
-    <div class="cardTitle">
-        💡 LIGHT
-    </div>
-
-    <p>
-        Power :
-        <span id="lightPower">
-            OFF
-        </span>
-    </p>
-
-    <p>
-        Brightness :
-        <span id="lightBrightness">
-            MAX
-        </span>
-    </p>
-
-    <p>
-        Timer :
-        <span id="lightTimer">
-            OFF
-        </span>
-    </p>
-
-    <button
-        class="lightBtn"
-        onclick="lightAllOn()">
-
-        ON
-
-    </button>
-
-    <button
-        class="offBtn"
-        onclick="lightOff()">
-
-        OFF
-
-    </button>
-
-    <button
-        class="lightBtn"
-        onclick="lightNight()">
-
-        NIGHT
-
-    </button>
-
-    <button
-        class="lightBtn"
-        onclick="lightDim()">
-
-        DIM
-
-    </button>
-
-    <button
-        class="lightBtn"
-        onclick="lightTimer()">
-
-        TIMER
-
-    </button>
-
-</div>
-
-<script src="app.js?v=4"></script>
-
 </body>
 </html>
